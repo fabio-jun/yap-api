@@ -16,7 +16,7 @@ using Microsoft.IdentityModel.Tokens;
 var builder = WebApplication.CreateBuilder(args);
 
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-    ?? ["http://localhost:5173", "http://localhost:3000"];
+    ?? ["http://localhost:5173", "http://localhost:3000", "https://yap-client.vercel.app"];
 
 builder.Services.AddCors(options =>
 {
