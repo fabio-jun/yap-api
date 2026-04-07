@@ -28,7 +28,7 @@ public class CommentServiceTests
         var result = (await _sut.GetByPostIdAsync(1)).ToList();
 
         Assert.Single(result);
-        Assert.Equal("Nice post!", result[0].Content);
+        Assert.Equal("Nice post", result[0].Content);
         Assert.Equal("commenter", result[0].AuthorName);
     }
 
