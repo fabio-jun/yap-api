@@ -7,6 +7,8 @@ public interface IPostService
 {
     // Returns all posts (most recent first), with like info for the current user
     Task<IEnumerable<PostResponse>> GetAllAsync(int? currentUserId = null);
+    // Returns posts by a specific user
+    Task<IEnumerable<PostResponse>> GetByUserIdAsync(int userId, int? currentUserId = null);
     // Returns paginated posts
     Task<PagedResponse<PostResponse>> GetAllPagedAsync(int page, int pageSize, int? currentUserId = null);
     // Returns posts from users the authenticated user follows

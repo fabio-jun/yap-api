@@ -22,6 +22,16 @@ public class PostRepository : IPostRepository
             .ToListAsync();
     }
 
+    // Returns all posts by a specific user
+    public async Task<IEnumerable<Post>> GetByUserIdAsync(int userId)
+    {
+        return await _context.Posts
+            .Include(p => p.Author)
+            .Where(p => p.AuthorId == userId)
+            .OrderByDescending(p => p.CreatedAt)
+            .ToListAsync();
+    }
+
     // Returns all posts with pagination
     public async Task<(IEnumerable<Post> Items, int TotalCount)> GetAllPagedAsync(int page, int pageSize)
     {

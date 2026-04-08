@@ -55,6 +55,17 @@ public class PostController : ControllerBase
         return Ok(posts);
     }
 
+    // GET api/post/user/{userId} — returns all posts by a specific user
+    [HttpGet("user/{userId}")]
+    public async Task<IActionResult> GetByUserId(int userId)
+    {
+        var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        int? currentUserId = userIdClaim != null ? int.Parse(userIdClaim.Value) : null;
+
+        var posts = await _postService.GetByUserIdAsync(userId, currentUserId);
+        return Ok(posts);
+    }
+
     // GET api/post/{id} — public, returns a single post with like info for the current user
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(int id)

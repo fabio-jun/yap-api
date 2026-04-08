@@ -54,6 +54,35 @@ public class PostService : IPostService
         return responses;
     }
 
+    // Returns posts by a specific user
+    public async Task<IEnumerable<PostResponse>> GetByUserIdAsync(int userId, int? currentUserId = null)
+    {
+        var posts = await _postRepository.GetByUserIdAsync(userId);
+        var responses = new List<PostResponse>();
+
+        foreach (var post in posts)
+        {
+            responses.Add(new PostResponse
+            {
+                Id = post.Id,
+                Content = post.Content,
+                CreatedAt = post.CreatedAt,
+                UpdatedAt = post.UpdatedAt,
+                AuthorId = post.AuthorId,
+                AuthorName = post.Author?.UserName ?? string.Empty,
+                AuthorProfileImageUrl = post.Author?.ProfileImageUrl,
+                ImageUrl = post.ImageUrl,
+                LikeCount = await _likeRepository.GetCountByPostIdAsync(post.Id),
+                HasLiked = currentUserId.HasValue
+                    && await _likeRepository.GetAsync(post.Id, currentUserId.Value) != null,
+                HasBookmarked = currentUserId.HasValue
+                    && await _bookmarkRepository.GetAsync(post.Id, currentUserId.Value) != null
+            });
+        }
+
+        return responses;
+    }
+
     // Returns paginated posts
     public async Task<PagedResponse<PostResponse>> GetAllPagedAsync(int page, int pageSize, int? currentUserId = null)
     {
