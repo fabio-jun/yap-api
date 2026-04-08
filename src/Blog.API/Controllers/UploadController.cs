@@ -20,25 +20,43 @@ public class UploadController : ControllerBase
         if (file == null || file.Length == 0)
             return BadRequest("No file uploaded.");
 
-        var allowedTypes = new[] { "image/jpeg", "image/png", "image/gif", "image/webp" };
-        if (!allowedTypes.Contains(file.ContentType))
-            return BadRequest("Only image files are allowed.");
+        var imageTypes = new[] { "image/jpeg", "image/png", "image/gif", "image/webp" };
+        var videoTypes = new[] { "video/mp4", "video/webm", "video/quicktime" };
+        var isImage = imageTypes.Contains(file.ContentType);
+        var isVideo = videoTypes.Contains(file.ContentType);
 
-        if (file.Length > 5 * 1024 * 1024)
-            return BadRequest("File size must be under 5MB.");
+        if (!isImage && !isVideo)
+            return BadRequest("Only image and video files are allowed.");
+
+        if (isImage && file.Length > 5 * 1024 * 1024)
+            return BadRequest("Image size must be under 5MB.");
+
+        if (isVideo && file.Length > 50 * 1024 * 1024)
+            return BadRequest("Video size must be under 50MB.");
 
         using var stream = file.OpenReadStream();
-        var uploadParams = new ImageUploadParams
+
+        if (isVideo)
+        {
+            var videoParams = new VideoUploadParams
+            {
+                File = new FileDescription(file.FileName, stream),
+                Folder = "yap"
+            };
+            var videoResult = await _cloudinary.UploadAsync(videoParams);
+            if (videoResult.Error != null)
+                return BadRequest(videoResult.Error.Message);
+            return Ok(new { url = videoResult.SecureUrl.ToString(), type = "video" });
+        }
+
+        var imageParams = new ImageUploadParams
         {
             File = new FileDescription(file.FileName, stream),
             Folder = "yap"
         };
-
-        var result = await _cloudinary.UploadAsync(uploadParams);
-
-        if (result.Error != null)
-            return BadRequest(result.Error.Message);
-
-        return Ok(new { url = result.SecureUrl.ToString() });
+        var imageResult = await _cloudinary.UploadAsync(imageParams);
+        if (imageResult.Error != null)
+            return BadRequest(imageResult.Error.Message);
+        return Ok(new { url = imageResult.SecureUrl.ToString(), type = "image" });
     }
 }
