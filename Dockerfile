@@ -10,7 +10,7 @@ RUN dotnet restore src/Blog.API/Blog.API.csproj
 
 # Copy everything and publish
 COPY src/ src/
-RUN dotnet publish src/Blog.API/Blog.API.csproj -c Release -o /app/publish --no-restore
+RUN dotnet publish src/Blog.API/Blog.API.csproj -c Release -o /app/publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app

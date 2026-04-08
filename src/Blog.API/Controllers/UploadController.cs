@@ -1,3 +1,5 @@
+using CloudinaryDotNet;
+using CloudinaryDotNet.Actions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -7,11 +9,10 @@ namespace Blog.API.Controllers;
 [Route("api/[controller]")]
 public class UploadController : ControllerBase
 {
-    private readonly IWebHostEnvironment _env;
+    private readonly Cloudinary _cloudinary;
 
-    public UploadController(IWebHostEnvironment env) => _env = env;
+    public UploadController(Cloudinary cloudinary) => _cloudinary = cloudinary;
 
-    // POST api/upload — uploads an image and returns the URL
     [HttpPost]
     [Authorize]
     public async Task<IActionResult> Upload(IFormFile file)
@@ -26,18 +27,18 @@ public class UploadController : ControllerBase
         if (file.Length > 5 * 1024 * 1024)
             return BadRequest("File size must be under 5MB.");
 
-        var uploadsDir = Path.Combine(_env.WebRootPath ?? Path.Combine(_env.ContentRootPath, "wwwroot"), "uploads");
-        Directory.CreateDirectory(uploadsDir);
-
-        var fileName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
-        var filePath = Path.Combine(uploadsDir, fileName);
-
-        using (var stream = new FileStream(filePath, FileMode.Create))
+        using var stream = file.OpenReadStream();
+        var uploadParams = new ImageUploadParams
         {
-            await file.CopyToAsync(stream);
-        }
+            File = new FileDescription(file.FileName, stream),
+            Folder = "yap"
+        };
 
-        var url = $"/uploads/{fileName}";
-        return Ok(new { url });
+        var result = await _cloudinary.UploadAsync(uploadParams);
+
+        if (result.Error != null)
+            return BadRequest(result.Error.Message);
+
+        return Ok(new { url = result.SecureUrl.ToString() });
     }
 }

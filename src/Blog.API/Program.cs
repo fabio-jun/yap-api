@@ -5,6 +5,7 @@ using Blog.Infrastructure.Repositories;
 using Blog.Domain.Interfaces;
 using Blog.Application.Interfaces;
 using Blog.Application.Services;
+using CloudinaryDotNet;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
@@ -74,6 +75,17 @@ builder.Services.AddScoped<IFollowRepository, FollowRepository>();
 builder.Services.AddScoped<IFollowService, FollowService>();
 builder.Services.AddScoped<IBookmarkRepository, BookmarkRepository>();
 builder.Services.AddScoped<IBookmarkService, BookmarkService>();
+
+// Cloudinary
+var cloudinaryUrl = builder.Configuration["Cloudinary:Url"];
+if (!string.IsNullOrEmpty(cloudinaryUrl))
+{
+    builder.Services.AddSingleton(new Cloudinary(cloudinaryUrl));
+}
+else
+{
+    builder.Services.AddSingleton(new Cloudinary(new Account("demo", "demo", "demo")));
+}
 
 //Constroi a aplicação
 var app = builder.Build();
