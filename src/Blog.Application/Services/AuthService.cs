@@ -10,95 +10,112 @@ using Microsoft.IdentityModel.Tokens;
 
 namespace Blog.Application.Services;
 
+// Service that handles authentication: register, login, and token refresh.
+// Implements IAuthService — the controller depends on the interface, not this class (DI).
 public class AuthService : IAuthService
 {
-    //External dependencies used for dependency Injection
+    // 'private readonly' — the field can only be assigned in the constructor, preventing accidental reassignment.
+    // '_' prefix is C# naming convention for private fields.
     private readonly IUserRepository _userRepository;
     private readonly IRefreshTokenRepository _refreshTokenRepository;
+    // IConfiguration gives access to appsettings.json values (e.g., Jwt:Key, Jwt:Issuer)
     private readonly IConfiguration _configuration;
 
-    //Constructor: DI
+    // Constructor — Dependency Injection (DI).
+    // ASP.NET Core's DI container creates instances of the dependencies and passes them here.
+    // The controller never does 'new AuthService(...)' — the DI container handles it.
     public AuthService(
         IUserRepository userRepository,
         IRefreshTokenRepository refreshTokenRepository,
         IConfiguration configuration)
     {
-        _userRepository = userRepository; // Reference to the object that the DI creates
+        _userRepository = userRepository;
         _refreshTokenRepository = refreshTokenRepository;
         _configuration = configuration;
     }
 
-    //Receives a DTO and returns an AuthResponse(tokens)
-    //RegisterRequest is the DTO
+    // Registers a new user: validates uniqueness, hashes password, generates tokens.
+    // 'async Task<T>' — asynchronous method that returns T. 'await' pauses until the async operation completes
+    // without blocking the thread (important for web servers handling many requests).
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
     {
+        // Check if email is already registered
         var existingUser = await _userRepository.GetByEmailAsync(request.Email);
         if (existingUser != null)
             throw new ArgumentException("Email already registered.");
 
+        // Check if username is taken
         var existingUserName = await _userRepository.GetByUserNameAsync(request.UserName);
         if (existingUserName != null)
             throw new ArgumentException("Username already taken.");
 
+        // Create the User entity — object initializer syntax: new Type { Prop = value }
         var user = new User
         {
             UserName = request.UserName,
             Email = request.Email,
+            // BCrypt.HashPassword() generates a salted hash — never store plain text passwords
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
             Role = "User"
         };
 
+        // INSERT INTO Users (...) VALUES (...)
         await _userRepository.AddAsync(user);
 
-        // Generate tokens
+        // Generate JWT + refresh token and return them
         return await GenerateAuthResponse(user);
     }
 
-    //Find user by email
+    // Validates credentials and returns tokens.
     public async Task<AuthResponse> LoginAsync(LoginRequest request)
     {
         var user = await _userRepository.GetByEmailAsync(request.Email);
+        // BCrypt.Verify compares plain password against the stored hash
         if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             throw new ArgumentException("Email ou senha inválidos.");
-        //Generates tokens
+
         return await GenerateAuthResponse(user);
     }
 
-
+    // Exchanges a valid refresh token for new tokens (token rotation for security).
     public async Task<AuthResponse> RefreshTokenAsync(string refreshToken)
     {
         var token = await _refreshTokenRepository.GetByTokenAsync(refreshToken);
+        // Validate: token must exist, not be revoked, and not be expired
         if (token == null || token.IsRevoked || token.ExpiresAt < DateTime.UtcNow)
             throw new ArgumentException("Invalid refresh token.");
 
-        // Revokes old token
+        // Revoke the old token to prevent reuse (token rotation)
         token.IsRevoked = true;
         await _refreshTokenRepository.UpdateAsync(token);
 
-        // Search for the user and generates new tokens
+        // Look up the user and generate fresh tokens
         var user = await _userRepository.GetByIdAsync(token.UserId);
+        // '!' (null-forgiving operator) — tells the compiler "I know this isn't null"
         return await GenerateAuthResponse(user!);
     }
 
+    // Private helper — generates both JWT access token and refresh token.
+    // 'private' means only this class can call it — not exposed to controllers.
     private async Task<AuthResponse> GenerateAuthResponse(User user)
     {
-        // Generates JWT Token
-        var accessToken = GenerateJwtToken(user); 
+        // Generate the short-lived JWT (1 hour)
+        var accessToken = GenerateJwtToken(user);
         var expiresAt = DateTime.UtcNow.AddDays(7);
 
+        // Create a long-lived refresh token (7 days)
         var refreshToken = new RefreshToken
         {
-            Token = Guid.NewGuid().ToString(), // Random unique string
+            // Guid.NewGuid() — generates a globally unique random string (e.g., "a1b2c3d4-...")
+            Token = Guid.NewGuid().ToString(),
             ExpiresAt = expiresAt,
             UserId = user.Id
-        // Instruction so ; ends it
         };
-        
 
-        // Saves refresh token at the DB
+        // Persist refresh token in the database
         await _refreshTokenRepository.AddAsync(refreshToken);
 
-        // Returns the DTO with two tokens
+        // Return the DTO with both tokens
         return new AuthResponse
         {
             AccessToken = accessToken,
@@ -107,13 +124,19 @@ public class AuthService : IAuthService
         };
     }
 
+    // Generates a JWT (JSON Web Token) containing user claims.
+    // The token is signed with HMAC-SHA256 using the secret key from appsettings.json.
     private string GenerateJwtToken(User user)
     {
-        // Gets the secret key from appsettings.json
+        // Read the secret key from configuration and convert to bytes
+        // _configuration["Jwt:Key"] reads the value from appsettings.json → { "Jwt": { "Key": "..." } }
+        // '!' asserts the value is not null
         var key = new SymmetricSecurityKey(
             Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!));
 
-        // Claims: information inside the token
+        // Claims are key-value pairs embedded inside the JWT payload.
+        // The frontend and backend can read these without a database query.
+        // ClaimTypes.NameIdentifier → standard claim for user ID
         var claims = new[]
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
@@ -121,15 +144,16 @@ public class AuthService : IAuthService
             new Claim(ClaimTypes.Role, user.Role)
         };
 
-        // Serializes to string
+        // Create the token with issuer, audience, claims, expiration, and signing credentials
         var token = new JwtSecurityToken(
-            issuer: _configuration["Jwt:Issuer"],
-            audience: _configuration["Jwt:Audience"],
-            claims: claims,
-            expires: DateTime.UtcNow.AddHours(1),
+            issuer: _configuration["Jwt:Issuer"],         // Who issued the token
+            audience: _configuration["Jwt:Audience"],     // Who the token is for
+            claims: claims,                               // User info embedded in the token
+            expires: DateTime.UtcNow.AddHours(1),         // Token valid for 1 hour
             signingCredentials: new SigningCredentials(key, SecurityAlgorithms.HmacSha256)
         );
 
+        // Serialize the token object to a compact JWT string (header.payload.signature)
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 }

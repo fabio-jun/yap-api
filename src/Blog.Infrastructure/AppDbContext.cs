@@ -1,18 +1,24 @@
-﻿using Blog.Domain.Entities;
+using Blog.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using System.Reflection;
 
 namespace Blog.Infrastructure;
 
-//DbContext: EF Core's base class
+// DbContext is EF Core's main class — it represents a session with the database.
+// It translates C# LINQ queries into SQL and manages the connection, change tracking, and transactions.
+// AppDbContext inherits from DbContext and configures which entities map to which tables.
 public class AppDbContext : DbContext
 {
-    // Constructor receives the connection configurations
+    // Constructor — receives DbContextOptions containing the connection string and provider (PostgreSQL).
+    // 'base(options)' passes the options to the parent DbContext constructor.
+    // The options are configured in Program.cs via builder.Services.AddDbContext<AppDbContext>(...).
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {
     }
 
-    // Set tables as object collections in C#
+    // DbSet<T> properties — each one represents a table in the database.
+    // _context.Users becomes "SELECT ... FROM Users" when queried with LINQ.
+    // _context.Users.AddAsync(user) becomes "INSERT INTO Users (...)".
     public DbSet<User> Users { get; set; }
     public DbSet<Post> Posts { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
@@ -24,13 +30,17 @@ public class AppDbContext : DbContext
     public DbSet<Bookmark> Bookmarks { get; set; }
     public DbSet<DirectMessage> DirectMessages { get; set; }
 
-    //Apply the entities's classes configurations
+    // OnModelCreating is called once when EF Core builds the internal model of the database.
+    // This is where you configure relationships, constraints, indexes, etc. using Fluent API.
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        // Calls the original implementation from the father class
+        // Calls the base implementation (required for proper initialization)
         base.OnModelCreating(modelBuilder);
-        //Automatically searches for all the classes that implement IEntityTypeConfiguration<T> in the
-        //project and applies
+
+        // ApplyConfigurationsFromAssembly scans this assembly (Blog.Infrastructure) for all classes
+        // that implement IEntityTypeConfiguration<T> and applies them automatically.
+        // This means each entity's configuration lives in its own file (e.g., UserConfiguration.cs)
+        // instead of cluttering OnModelCreating with hundreds of lines.
         modelBuilder.ApplyConfigurationsFromAssembly(Assembly.GetExecutingAssembly());
     }
 }

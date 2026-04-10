@@ -4,18 +4,16 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Blog.Infrastructure.Configurations;
 
-// How Post is mapped at the DB
+// EF Core Fluent API configuration for the Post entity.
 public class PostConfiguration : IEntityTypeConfiguration<Post>
 {
     public void Configure(EntityTypeBuilder<Post> builder)
     {
-        // Table name
         builder.ToTable("Posts");
 
-        // PK
         builder.HasKey(p => p.Id);
 
-        // Content limited to 280 characters
+        // Content limited to 280 characters — yap limit, like Twitter/X
         builder.Property(p => p.Content)
             .IsRequired()
             .HasMaxLength(280);
@@ -24,10 +22,15 @@ public class PostConfiguration : IEntityTypeConfiguration<Post>
             .IsRequired()
             .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+        // Nullable column — IsRequired(false) means the column allows NULL
         builder.Property(p => p.UpdatedAt)
             .IsRequired(false);
 
-        // Post -> User (Many-to-One)
+        // Relationship: Post → User (Many-to-One)
+        // HasOne(p => p.Author) — each Post has one Author (User)
+        // WithMany(u => u.Posts) — each User has many Posts
+        // HasForeignKey(p => p.AuthorId) — the FK column in the Posts table
+        // OnDelete(Restrict) — don't cascade delete: can't delete a user who has posts
         builder.HasOne(p => p.Author)
             .WithMany(u => u.Posts)
             .HasForeignKey(p => p.AuthorId)

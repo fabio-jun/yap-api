@@ -11,19 +11,27 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
-
-
-//Cria o construtor da aplicação, carrega appsettings.json, variáveis de ambiente, etc
+// --- APPLICATION BUILDER PHASE ---
+// WebApplication.CreateBuilder — creates the host with default configuration:
+// loads appsettings.json, environment variables, command-line args, and sets up logging.
+// Uses the "minimal hosting model" (no Startup class) introduced in .NET 6.
 var builder = WebApplication.CreateBuilder(args);
 
+// Configures Kestrel (the built-in web server) to accept request bodies up to 55MB.
+// Needed for file uploads (images/videos via Cloudinary).
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.Limits.MaxRequestBodySize = 55 * 1024 * 1024; // 55MB
 });
 
+// --- CORS Configuration ---
+// GetSection().Get<string[]>() — binds a JSON array from appsettings to a C# string[].
+// ?? — null-coalescing operator: if config is null, use these default origins.
+// Collection expression [...] — C# 12 syntax for array initialization.
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
     ?? ["http://localhost:5173", "http://localhost:3000", "https://yap-client.vercel.app"];
 
+// AddCors — registers CORS services. The policy name "AllowFrontend" is referenced later in UseCors.
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
@@ -34,56 +42,75 @@ builder.Services.AddCors(options =>
     });
 });
 
-//Registro de serviços (Injeção de Dependência)
+// --- SERVICE REGISTRATION (Dependency Injection Container) ---
 
-//Registra os controllers da api
+// AddControllers — registers all [ApiController] classes and their dependencies.
+// This enables attribute routing ([Route], [HttpGet], etc.) and model binding.
 builder.Services.AddControllers();
 
-//Registra o AppDbContext no container de DI
+// AddDbContext — registers AppDbContext as a Scoped service (one instance per HTTP request).
+// UseNpgsql — configures EF Core to use PostgreSQL via the Npgsql provider.
+// GetConnectionString("DefaultConnection") — reads from appsettings.json > ConnectionStrings > DefaultConnection.
 builder.Services.AddDbContext<AppDbContext>(options =>
       options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-//Registra o suporte a Swagger
+// Swagger/OpenAPI — auto-generates API documentation at /swagger.
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// --- JWT Authentication ---
+// AddAuthentication — registers the authentication services with JWT Bearer as the default scheme.
+// JwtBearerDefaults.AuthenticationScheme = "Bearer" — the scheme name used in [Authorize] attributes.
+// AddJwtBearer — configures how incoming JWT tokens are validated.
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
       .AddJwtBearer(options =>
       {
+          // TokenValidationParameters — defines what to check in each incoming token.
           options.TokenValidationParameters = new TokenValidationParameters
           {
-              ValidateIssuer = true,
-              ValidateAudience = true,
-              ValidateLifetime = true,
-              ValidateIssuerSigningKey = true,
+              ValidateIssuer = true,           // Check token was issued by our server
+              ValidateAudience = true,         // Check token is intended for our API
+              ValidateLifetime = true,         // Check token hasn't expired
+              ValidateIssuerSigningKey = true,  // Verify the signature with our secret key
               ValidIssuer = builder.Configuration["Jwt:Issuer"],
               ValidAudience = builder.Configuration["Jwt:Audience"],
+              // SymmetricSecurityKey — same key is used for signing and verifying (HMAC-SHA256).
+              // The '!' (null-forgiving operator) asserts the config value exists at runtime.
               IssuerSigningKey = new SymmetricSecurityKey(
                   Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
           };
       });
 
-// Cria uma nova instância por HTTP Request
+// --- Scoped Service Registration ---
+// AddScoped — creates a new instance per HTTP request. All services in the same request share instances.
+// Pattern: AddScoped<Interface, Implementation>() — binds the abstraction to the concrete class.
+// When a controller requests IPostService, DI provides a PostService instance.
+
+// Repositories (data access layer)
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
-builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IPostRepository, PostRepository>();
-builder.Services.AddScoped<IPostService, PostService>();
 builder.Services.AddScoped<ICommentRepository, CommentRepository>();
+builder.Services.AddScoped<ITagRepository, TagRepository>();
+builder.Services.AddScoped<ILikeRepository, LikeRepository>();
+builder.Services.AddScoped<IFollowRepository, FollowRepository>();
+builder.Services.AddScoped<IBookmarkRepository, BookmarkRepository>();
+builder.Services.AddScoped<IDirectMessageRepository, DirectMessageRepository>();
+
+// Application services (business logic layer)
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IPostService, PostService>();
 builder.Services.AddScoped<ICommentService, CommentService>();
 builder.Services.AddScoped<IUserService, UserService>();
-builder.Services.AddScoped<ITagRepository, TagRepository>();
 builder.Services.AddScoped<ITagService, TagService>();
-builder.Services.AddScoped<ILikeRepository, LikeRepository>();
 builder.Services.AddScoped<ILikeService, LikeService>();
-builder.Services.AddScoped<IFollowRepository, FollowRepository>();
 builder.Services.AddScoped<IFollowService, FollowService>();
-builder.Services.AddScoped<IBookmarkRepository, BookmarkRepository>();
 builder.Services.AddScoped<IBookmarkService, BookmarkService>();
-builder.Services.AddScoped<IDirectMessageRepository, DirectMessageRepository>();
 builder.Services.AddScoped<IDirectMessageService, DirectMessageService>();
 
-// Cloudinary
+// --- Cloudinary Configuration ---
+// AddSingleton — creates one instance shared across all requests (Cloudinary client is thread-safe).
+// Reads the Cloudinary URL from configuration; falls back to a demo account if not set.
 var cloudinaryUrl = builder.Configuration["Cloudinary:Url"];
 if (!string.IsNullOrEmpty(cloudinaryUrl))
 {
@@ -94,10 +121,16 @@ else
     builder.Services.AddSingleton(new Cloudinary(new Account("demo", "demo", "demo")));
 }
 
-//Constroi a aplicação
+// --- APPLICATION PIPELINE PHASE ---
+// Build() — finalizes the service container and creates the WebApplication.
+// After this point, no more services can be registered.
 var app = builder.Build();
 
-// Auto-apply pending migrations and seed data on startup
+// --- Database Migration & Seeding ---
+// CreateScope() — creates a temporary DI scope to resolve scoped services outside of an HTTP request.
+// using — ensures the scope is disposed after the block (C# IDisposable pattern).
+// Migrate() — applies any pending EF Core migrations to the database (creates/alters tables).
+// SeedAsync — populates the database with fake data if empty (see FakeDataSeeder).
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -105,32 +138,46 @@ using (var scope = app.Services.CreateScope())
     await FakeDataSeeder.SeedAsync(db);
 }
 
+// --- Middleware Pipeline ---
+// The order of middleware matters! Each request flows through these in order.
+
+// CORS must be before auth and controllers.
 app.UseCors("AllowFrontend");
 
+// Global exception handler — catches all unhandled exceptions and returns JSON error responses.
 app.UseMiddleware<ExceptionMiddleware>();
 
-// Configure the HTTP request pipeline.
+// Swagger UI — only enabled in Development environment (not exposed in production).
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
+// HTTPS redirection — only in development (production handles this at the reverse proxy/load balancer level).
 if (app.Environment.IsDevelopment())
 {
     app.UseHttpsRedirection();
 }
 
+// Authentication must come before Authorization.
+// UseAuthentication — reads and validates the JWT token from the Authorization header.
 app.UseAuthentication();
 
+// UseAuthorization — enforces [Authorize] attributes on controllers/actions.
 app.UseAuthorization();
 
-// Ensure wwwroot/uploads exists and serve static files
+// --- Static Files ---
+// Ensures the wwwroot/uploads directory exists for local file uploads.
+// UseStaticFiles — serves files from wwwroot/ (images, uploads, etc.) as HTTP responses.
 var webRootPath = Path.Combine(app.Environment.ContentRootPath, "wwwroot");
 Directory.CreateDirectory(Path.Combine(webRootPath, "uploads"));
 app.Environment.WebRootPath = webRootPath;
 app.UseStaticFiles();
 
+// MapControllers — maps attribute-routed controllers to the endpoint routing system.
+// This connects [Route("api/[controller]")] and [HttpGet] attributes to the pipeline.
 app.MapControllers();
 
+// Run — starts the Kestrel web server and blocks until shutdown (Ctrl+C or SIGTERM).
 app.Run();

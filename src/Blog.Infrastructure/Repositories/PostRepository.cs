@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Blog.Infrastructure.Repositories;
 
+// Concrete implementation of IPostRepository using EF Core.
+// Handles all database operations for Post entities, including feed, search, and pagination.
 public class PostRepository : IPostRepository
 {
     private readonly AppDbContext _context;
@@ -13,7 +15,9 @@ public class PostRepository : IPostRepository
         _context = context;
     }
 
-    // Returns all posts ordered by most recent first
+    // Include(p => p.Author) — eager loading: loads the related User entity in the same query.
+    // Without Include, p.Author would be null (EF Core uses lazy loading only if explicitly configured).
+    // OrderByDescending — most recent posts first (SQL: ORDER BY "CreatedAt" DESC).
     public async Task<IEnumerable<Post>> GetAllAsync()
     {
         return await _context.Posts
@@ -22,7 +26,8 @@ public class PostRepository : IPostRepository
             .ToListAsync();
     }
 
-    // Returns all posts by a specific user
+    // Where() — filters the query (SQL WHERE clause).
+    // The lambda p => p.AuthorId == userId is translated to SQL by EF Core's query provider.
     public async Task<IEnumerable<Post>> GetByUserIdAsync(int userId)
     {
         return await _context.Posts
@@ -32,7 +37,11 @@ public class PostRepository : IPostRepository
             .ToListAsync();
     }
 
-    // Returns all posts with pagination
+    // Pagination using Skip/Take pattern:
+    // Skip((page - 1) * pageSize) — skips previous pages (SQL OFFSET)
+    // Take(pageSize) — returns only one page worth of results (SQL LIMIT)
+    // Returns a tuple (Items, TotalCount) — C# value tuple for multiple return values.
+    // CountAsync() runs a separate COUNT(*) query for total pagination metadata.
     public async Task<(IEnumerable<Post> Items, int TotalCount)> GetAllPagedAsync(int page, int pageSize)
     {
         var query = _context.Posts
@@ -48,7 +57,9 @@ public class PostRepository : IPostRepository
         return (items, totalCount);
     }
 
-    // Returns posts from users that the given user follows
+    // Feed query — returns posts only from users the current user follows.
+    // Uses a subquery: Any() checks if a Follow record exists linking the current user to the post's author.
+    // Translates to SQL: WHERE EXISTS (SELECT 1 FROM "Follows" WHERE ...)
     public async Task<IEnumerable<Post>> GetFeedAsync(int userId)
     {
         return await _context.Posts
@@ -58,7 +69,8 @@ public class PostRepository : IPostRepository
             .ToListAsync();
     }
 
-    // Searches posts by content
+    // EF.Functions.ILike — PostgreSQL case-insensitive pattern matching.
+    // $"%{query}%" — searches for the query string anywhere in the content.
     public async Task<IEnumerable<Post>> SearchAsync(string query)
     {
         return await _context.Posts
@@ -68,7 +80,10 @@ public class PostRepository : IPostRepository
             .ToListAsync();
     }
 
-    // Returns posts that have a specific tag
+    // Filters posts by tag name using a navigation chain:
+    // p.PostTags! — the null-forgiving operator (!) tells the compiler PostTags won't be null at runtime.
+    // Any(pt => pt.Tag!.Name == tagName.ToLower()) — checks if any associated tag matches.
+    // This traverses: Post → PostTags (join table) → Tag.Name
     public async Task<IEnumerable<Post>> GetByTagAsync(string tagName)
     {
         return await _context.Posts
@@ -78,7 +93,8 @@ public class PostRepository : IPostRepository
             .ToListAsync();
     }
 
-    // Returns a single post by ID
+    // FirstOrDefaultAsync — returns the first match or null.
+    // Unlike FindAsync (which uses PK + cache), this supports Include() for eager loading.
     public async Task<Post?> GetByIdAsync(int id)
     {
         return await _context.Posts
@@ -86,21 +102,18 @@ public class PostRepository : IPostRepository
             .FirstOrDefaultAsync(p => p.Id == id);
     }
 
-    // Inserts a new post
     public async Task AddAsync(Post post)
     {
         await _context.Posts.AddAsync(post);
         await _context.SaveChangesAsync();
     }
 
-    // Updates an existing post
     public async Task UpdateAsync(Post post)
     {
         _context.Posts.Update(post);
         await _context.SaveChangesAsync();
     }
 
-    // Deletes a post
     public async Task DeleteAsync(Post post)
     {
         _context.Posts.Remove(post);

@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Blog.Infrastructure.Repositories;
 
+// Concrete implementation of IBookmarkRepository using EF Core.
+// Bookmark uses composite PK (PostId, UserId) — same pattern as Like.
 public class BookmarkRepository : IBookmarkRepository
 {
     private readonly AppDbContext _context;
@@ -13,12 +15,20 @@ public class BookmarkRepository : IBookmarkRepository
         _context = context;
     }
 
+    // Checks if a bookmark exists for a specific post + user combination.
+    // Used by the service layer for the toggle pattern (bookmark/unbookmark).
     public async Task<Bookmark?> GetAsync(int postId, int userId)
     {
         return await _context.Bookmarks
             .FirstOrDefaultAsync(b => b.PostId == postId && b.UserId == userId);
     }
 
+    // Returns all posts bookmarked by a user, ordered by most recently bookmarked.
+    // Chained Include + ThenInclude pattern:
+    //   Include(b => b.Post!) — eagerly loads the Post entity from each Bookmark
+    //   ThenInclude(p => p.Author) — then eagerly loads the Post's Author (nested include)
+    // Select(b => b.Post!) — projects to return Post entities instead of Bookmark entities.
+    // The '!' null-forgiving operator tells the compiler Post won't be null at runtime.
     public async Task<IEnumerable<Post>> GetByUserAsync(int userId)
     {
         return await _context.Bookmarks

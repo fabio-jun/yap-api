@@ -6,23 +6,23 @@ using System.Security.Claims;
 
 namespace Blog.API.Controllers;
 
-// Attribute that enables API behaviors
+// API controller for post (yap) CRUD operations.
+// Handles listing, searching, filtering by tag, pagination, and CRUD with authorization.
 [ApiController]
-// Defines controller's base route
 [Route("api/[controller]")]
 public class PostController : ControllerBase
 {
-    // External dependency used for dependency injection
     private readonly IPostService _postService;
 
-    // Constructor: DI
     public PostController(IPostService postService)
     {
         _postService = postService;
     }
 
-    // GET api/post — public, returns all posts with like info for the current user
-    // Supports ?search=texto, ?tag=csharp, ?page=1&pageSize=20 query params
+    // GET api/post — public endpoint with multiple optional query parameters.
+    // [FromQuery] — binds parameters from the URL query string (?search=text&tag=dev&page=1).
+    // Nullable types (string?, int?) allow the parameters to be optional.
+    // The method dispatches to different service methods based on which params are present.
     [HttpGet]
     public async Task<IActionResult> GetAll(
         [FromQuery] string? search,
@@ -30,7 +30,11 @@ public class PostController : ControllerBase
         [FromQuery] int? page,
         [FromQuery] int? pageSize)
     {
+        // User.FindFirst() — reads claims from the JWT token (if present).
+        // ClaimTypes.NameIdentifier — standard claim type for user ID.
+        // Works for both authenticated and anonymous users (returns null if no token).
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
+        // Ternary operator + nullable int: extracts userId from claim, or null if anonymous.
         int? currentUserId = userIdClaim != null ? int.Parse(userIdClaim.Value) : null;
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -45,6 +49,9 @@ public class PostController : ControllerBase
             return Ok(results);
         }
 
+        // HasValue — checks if a nullable type has a value (int? can be null or an int).
+        // .Value — unwraps the nullable to get the underlying int.
+        // ?? — null-coalescing: uses 20 as default page size if not provided.
         if (page.HasValue)
         {
             var paged = await _postService.GetAllPagedAsync(page.Value, pageSize ?? 20, currentUserId);
@@ -55,7 +62,7 @@ public class PostController : ControllerBase
         return Ok(posts);
     }
 
-    // GET api/post/user/{userId} — returns all posts by a specific user
+    // GET api/post/user/{userId} — route parameter {userId} is bound to the method parameter.
     [HttpGet("user/{userId}")]
     public async Task<IActionResult> GetByUserId(int userId)
     {
@@ -66,7 +73,7 @@ public class PostController : ControllerBase
         return Ok(posts);
     }
 
-    // GET api/post/{id} — public, returns a single post with like info for the current user
+    // GET api/post/{id} — returns a single post by ID.
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(int id)
     {
@@ -77,30 +84,33 @@ public class PostController : ControllerBase
         return Ok(post);
     }
 
-    // POST api/post — authenticated, creates a new post
+    // POST api/post — creates a new post. Requires authentication.
+    // [Authorize] — rejects unauthenticated requests with 401. The JWT must be valid.
     [HttpPost]
     [Authorize]
     public async Task<IActionResult> Create(CreatePostRequest request)
     {
-        // Extracts the user ID from the JWT token claims
+        // User.FindFirst(ClaimTypes.NameIdentifier)! — the '!' (null-forgiving) is safe here
+        // because [Authorize] guarantees a valid JWT with claims exists.
         var authorId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
         var post = await _postService.CreateAsync(request, authorId);
         return Ok(post);
     }
 
-    // PUT api/post/{id} — authenticated, author or admin can update
+    // PUT api/post/{id} — updates a post. Service layer checks ownership (author or admin).
     [HttpPut("{id}")]
     [Authorize]
     public async Task<IActionResult> Update(int id, UpdatePostRequest request)
     {
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
+        // ClaimTypes.Role — reads the "role" claim from the JWT (e.g., "User" or "Admin").
         var userRole = User.FindFirst(ClaimTypes.Role)!.Value;
 
         var post = await _postService.UpdateAsync(id, request, userId, userRole);
         return Ok(post);
     }
 
-    // DELETE api/post/{id} — authenticated, author or admin can delete
+    // DELETE api/post/{id} — deletes a post. Service layer checks ownership.
     [HttpDelete("{id}")]
     [Authorize]
     public async Task<IActionResult> Delete(int id)
@@ -109,7 +119,7 @@ public class PostController : ControllerBase
         var userRole = User.FindFirst(ClaimTypes.Role)!.Value;
 
         await _postService.DeleteAsync(id, userId, userRole);
-        // Returns HTTP 204 (No Content) — standard for successful DELETE
+        // NoContent() — returns HTTP 204. Standard REST response for successful DELETE (no body).
         return NoContent();
     }
 }

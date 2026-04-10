@@ -6,6 +6,9 @@ using System.Security.Claims;
 
 namespace Blog.API.Controllers;
 
+// API controller for direct messaging (DM) between users.
+// [Authorize] at class level — all DM endpoints require authentication.
+// Route: api/messages (not api/directmessages — uses a custom route for cleaner URLs).
 [ApiController]
 [Route("api/messages")]
 [Authorize]
@@ -18,7 +21,8 @@ public class DirectMessagesController : ControllerBase
         _messageService = messageService;
     }
 
-    // GET api/messages — returns conversation list (inbox)
+    // GET api/messages — returns the conversation list (inbox view).
+    // Shows the most recent message from each conversation partner.
     [HttpGet]
     public async Task<IActionResult> GetConversations()
     {
@@ -27,7 +31,8 @@ public class DirectMessagesController : ControllerBase
         return Ok(conversations);
     }
 
-    // GET api/messages/{userId} — returns all messages with a specific user
+    // GET api/messages/{userId} — returns the full message history with a specific user.
+    // {userId} here is the other participant in the conversation (not the current user).
     [HttpGet("{userId}")]
     public async Task<IActionResult> GetConversation(int userId)
     {
@@ -36,7 +41,8 @@ public class DirectMessagesController : ControllerBase
         return Ok(messages);
     }
 
-    // POST api/messages/{userId} — send a message to a user
+    // POST api/messages/{userId} — sends a new message to the specified user.
+    // SendMessageRequest (from body) contains the message content.
     [HttpPost("{userId}")]
     public async Task<IActionResult> Send(int userId, SendMessageRequest request)
     {
@@ -45,12 +51,14 @@ public class DirectMessagesController : ControllerBase
         return Ok(message);
     }
 
-    // DELETE api/messages/msg/{id} — delete a message (sender only)
+    // DELETE api/messages/msg/{id} — deletes a specific message (sender only).
+    // "msg/{id}" avoids route conflict with GET {userId} (both would match an int).
     [HttpDelete("msg/{id}")]
     public async Task<IActionResult> Delete(int id)
     {
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
         await _messageService.DeleteAsync(id, userId);
+        // NoContent() — HTTP 204, standard for successful DELETE.
         return NoContent();
     }
 }

@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Blog.Infrastructure.Repositories;
 
+// Concrete implementation of IDirectMessageRepository using EF Core.
+// Handles private messaging (DM) between users — both individual conversations and conversation lists.
 public class DirectMessageRepository : IDirectMessageRepository
 {
     private readonly AppDbContext _context;
@@ -13,6 +15,11 @@ public class DirectMessageRepository : IDirectMessageRepository
         _context = context;
     }
 
+    // Returns all messages between two specific users, ordered chronologically.
+    // The Where clause matches messages in both directions:
+    //   (sender=user1 AND receiver=user2) OR (sender=user2 AND receiver=user1)
+    // This gives a complete bidirectional conversation thread.
+    // OrderBy (ascending) — oldest messages first, like a chat UI.
     public async Task<IEnumerable<DirectMessage>> GetConversationAsync(int userId1, int userId2)
     {
         return await _context.DirectMessages
@@ -24,6 +31,18 @@ public class DirectMessageRepository : IDirectMessageRepository
             .ToListAsync();
     }
 
+    // Returns a preview of all conversations for a user (inbox view).
+    // Strategy: load all messages involving the user, then group by the other participant.
+    //
+    // GroupBy logic:
+    //   m.SenderId == userId ? m.ReceiverId : m.SenderId
+    //   — determines who the "other person" is in each message (ternary operator)
+    //
+    // Select(g => g.First()) — takes only the most recent message per conversation
+    //   (messages are already sorted by CreatedAt DESC before grouping).
+    //
+    // Note: GroupBy + First happens in-memory (after ToListAsync) because EF Core
+    // cannot translate this grouping pattern to SQL.
     public async Task<IEnumerable<DirectMessage>> GetConversationsListAsync(int userId)
     {
         var messages = await _context.DirectMessages

@@ -5,6 +5,8 @@ using Blog.Application.Interfaces;
 
 namespace Blog.Application.Services;
 
+// Service that handles bookmark toggle and retrieval.
+// Same toggle pattern as LikeService and FollowService.
 public class BookmarkService : IBookmarkService
 {
     private readonly IBookmarkRepository _bookmarkRepository;
@@ -16,6 +18,7 @@ public class BookmarkService : IBookmarkService
         _likeRepository = likeRepository;
     }
 
+    // Toggles bookmark. Returns true if bookmarked, false if removed.
     public async Task<bool> ToggleBookmarkAsync(int postId, int userId)
     {
         var existing = await _bookmarkRepository.GetAsync(postId, userId);
@@ -23,7 +26,7 @@ public class BookmarkService : IBookmarkService
         if (existing != null)
         {
             await _bookmarkRepository.DeleteAsync(existing);
-            return false;
+            return false; // "unbookmarked"
         }
 
         await _bookmarkRepository.AddAsync(new Bookmark
@@ -32,14 +35,16 @@ public class BookmarkService : IBookmarkService
             UserId = userId,
             CreatedAt = DateTime.UtcNow
         });
-        return true;
+        return true; // "bookmarked"
     }
 
+    // Checks if a user has bookmarked a post.
     public async Task<bool> HasBookmarkedAsync(int postId, int userId)
     {
         return await _bookmarkRepository.GetAsync(postId, userId) != null;
     }
 
+    // Returns all posts bookmarked by a user, enriched with like info.
     public async Task<IEnumerable<PostResponse>> GetBookmarksAsync(int userId)
     {
         var posts = await _bookmarkRepository.GetByUserAsync(userId);
