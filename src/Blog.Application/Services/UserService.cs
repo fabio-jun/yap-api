@@ -31,6 +31,7 @@ public class UserService : IUserService
         {
             Id = user.Id,
             UserName = user.UserName,
+            DisplayName = user.DisplayName,
             Email = user.Email,
             Role = user.Role,
             CreatedAt = user.CreatedAt,
@@ -48,6 +49,7 @@ public class UserService : IUserService
         {
             Id = u.Id,
             UserName = u.UserName,
+            DisplayName = u.DisplayName,
             Email = u.Email,
             Role = u.Role,
             CreatedAt = u.CreatedAt,
@@ -68,6 +70,7 @@ public class UserService : IUserService
             {
                 Id = user.Id,
                 UserName = user.UserName,
+                DisplayName = user.DisplayName,
                 Email = user.Email,
                 Role = user.Role,
                 CreatedAt = user.CreatedAt,
@@ -91,6 +94,7 @@ public class UserService : IUserService
 
         user.UserName = request.userName;
         user.Email = request.Email;
+        user.DisplayName = request.DisplayName;
         user.ProfileImageUrl = request.ProfileImageUrl;
         user.Bio = request.Bio;
 
@@ -103,6 +107,7 @@ public class UserService : IUserService
         {
             Id = user.Id,
             UserName = user.UserName,
+            DisplayName = user.DisplayName,
             Email = user.Email,
             Role = user.Role,
             CreatedAt = user.CreatedAt,

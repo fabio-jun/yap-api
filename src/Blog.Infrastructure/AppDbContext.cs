@@ -22,6 +22,7 @@ public class AppDbContext : DbContext
     public DbSet<Like> Likes { get; set; }
     public DbSet<Follow> Follows { get; set; }
     public DbSet<Bookmark> Bookmarks { get; set; }
+    public DbSet<DirectMessage> DirectMessages { get; set; }
 
     //Apply the entities's classes configurations
     protected override void OnModelCreating(ModelBuilder modelBuilder)

@@ -9,6 +9,7 @@ public class UserResponse
     public required string Role { get; set; }
     public DateTime CreatedAt { get; set; }
     public string? ProfileImageUrl { get; set; }
+    public string? DisplayName { get; set; }
     public string? Bio { get; set; }
     public int FollowersCount { get; set; }
     public int FollowingCount { get; set; }

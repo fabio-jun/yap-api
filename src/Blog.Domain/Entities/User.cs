@@ -9,6 +9,7 @@ public class User
     public required string Role { get; set; }
     public DateTime CreatedAt { get; set; }
     public string? ProfileImageUrl { get; set; }
+    public string? DisplayName { get; set; }
     public string? Bio { get; set; }
     public ICollection<Post>? Posts { get; set; }
     public ICollection<Comment>? Comments { get; set; }
@@ -16,5 +17,6 @@ public class User
     public ICollection<Follow>? Followers { get; set; }
     public ICollection<Follow>? Following { get; set; }
     public ICollection<Bookmark>? Bookmarks { get; set; }
-
+    public ICollection<DirectMessage>? SentMessages { get; set; }
+    public ICollection<DirectMessage>? ReceivedMessages { get; set; }
 }

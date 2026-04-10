@@ -16,6 +16,11 @@ using Microsoft.IdentityModel.Tokens;
 //Cria o construtor da aplicação, carrega appsettings.json, variáveis de ambiente, etc
 var builder = WebApplication.CreateBuilder(args);
 
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.Limits.MaxRequestBodySize = 55 * 1024 * 1024; // 55MB
+});
+
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
     ?? ["http://localhost:5173", "http://localhost:3000", "https://yap-client.vercel.app"];
 
@@ -75,6 +80,8 @@ builder.Services.AddScoped<IFollowRepository, FollowRepository>();
 builder.Services.AddScoped<IFollowService, FollowService>();
 builder.Services.AddScoped<IBookmarkRepository, BookmarkRepository>();
 builder.Services.AddScoped<IBookmarkService, BookmarkService>();
+builder.Services.AddScoped<IDirectMessageRepository, DirectMessageRepository>();
+builder.Services.AddScoped<IDirectMessageService, DirectMessageService>();
 
 // Cloudinary
 var cloudinaryUrl = builder.Configuration["Cloudinary:Url"];
