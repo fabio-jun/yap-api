@@ -12,11 +12,15 @@ public class PostServiceTests
     private readonly ITagRepository _tagRepository = Substitute.For<ITagRepository>();
     private readonly ILikeRepository _likeRepository = Substitute.For<ILikeRepository>();
     private readonly IBookmarkRepository _bookmarkRepository = Substitute.For<IBookmarkRepository>();
+    private readonly IRepostRepository _repostRepository = Substitute.For<IRepostRepository>();
+    private readonly IUserRepository _userRepository = Substitute.For<IUserRepository>();
+    private readonly Blog.Application.Interfaces.INotificationService _notificationService = Substitute.For<Blog.Application.Interfaces.INotificationService>();
+    private readonly IBlockRepository _blockRepository = Substitute.For<IBlockRepository>();
     private readonly PostService _sut;
 
     public PostServiceTests()
     {
-        _sut = new PostService(_postRepository, _tagRepository, _likeRepository, _bookmarkRepository);
+        _sut = new PostService(_postRepository, _tagRepository, _likeRepository, _bookmarkRepository, _repostRepository, _userRepository, _notificationService, _blockRepository);
     }
 
     [Fact]
@@ -36,6 +40,23 @@ public class PostServiceTests
         Assert.Equal("Hello World", result[0].Content);
         Assert.Equal(5, result[0].LikeCount);
         Assert.True(result[0].HasLiked);
+    }
+
+    [Fact]
+    public async Task GetAllAsync_FiltersBlockedUsersForViewer()
+    {
+        var posts = new List<Post>
+        {
+            new() { Id = 1, Content = "Hidden", AuthorId = 2, Author = new User { Id = 2, UserName = "blocked", Email = "b@test.com", PasswordHash = "h", Role = "User" } },
+            new() { Id = 2, Content = "Visible", AuthorId = 3, Author = new User { Id = 3, UserName = "visible", Email = "v@test.com", PasswordHash = "h", Role = "User" } }
+        };
+        _postRepository.GetAllAsync().Returns(posts);
+        _blockRepository.GetBlockedUserIdsForViewerAsync(1).Returns(new HashSet<int> { 2 });
+
+        var result = (await _sut.GetAllAsync(1)).ToList();
+
+        Assert.Single(result);
+        Assert.Equal("Visible", result[0].Content);
     }
 
     [Fact]
@@ -114,6 +135,18 @@ public class PostServiceTests
 
         await _tagRepository.Received(1).AddAsync(Arg.Is<Tag>(t => t.Name == "hashtag"));
         await _tagRepository.Received(1).AddAsync(Arg.Is<Tag>(t => t.Name == "test"));
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithMention_CreatesMentionNotification()
+    {
+        var request = new CreatePostRequest { Content = "Hello @alice" };
+        _userRepository.GetByUserNameAsync("alice").Returns(new User { Id = 9, UserName = "alice", Email = "a@test.com", PasswordHash = "h", Role = "User" });
+
+        await _sut.CreateAsync(request, 1);
+
+        await _notificationService.Received(1).CreateNotificationAsync(
+            NotificationType.Mention, 1, 9, Arg.Any<int?>());
     }
 
     [Fact]
@@ -223,7 +256,7 @@ public class PostServiceTests
         {
             new() { Id = 1, Content = "Post 1", AuthorId = 1, Author = new User { Id = 1, UserName = "u", Email = "e", PasswordHash = "h", Role = "User" } }
         };
-        _postRepository.GetAllPagedAsync(1, 10).Returns((posts, 25));
+        _postRepository.GetAllAsync().Returns(posts);
         _likeRepository.GetCountByPostIdAsync(1).Returns(0);
 
         var result = await _sut.GetAllPagedAsync(1, 10);
@@ -231,7 +264,36 @@ public class PostServiceTests
         Assert.Single(result.Items);
         Assert.Equal(1, result.Page);
         Assert.Equal(10, result.PageSize);
-        Assert.Equal(25, result.TotalCount);
-        Assert.Equal(3, result.TotalPages);
+        Assert.Equal(1, result.TotalCount);
+        Assert.Equal(1, result.TotalPages);
+    }
+
+    [Fact]
+    public async Task GetFeedAsync_IncludesRepostsFromFollowedUsers()
+    {
+        var originalAuthor = new User { Id = 2, UserName = "original", Email = "o@test.com", PasswordHash = "h", Role = "User" };
+        var reposter = new User { Id = 3, UserName = "reposter", Email = "r@test.com", PasswordHash = "h", Role = "User" };
+        var repost = new Repost
+        {
+            Id = 7,
+            UserId = 3,
+            User = reposter,
+            PostId = 1,
+            Post = new Post { Id = 1, Content = "Original yap", AuthorId = 2, Author = originalAuthor },
+            CreatedAt = DateTime.UtcNow,
+            QuoteContent = "Look at this"
+        };
+        _postRepository.GetFeedAsync(1).Returns(new List<Post>());
+        _repostRepository.GetFeedAsync(1).Returns(new List<Repost> { repost });
+        _repostRepository.GetCountByPostIdAsync(1).Returns(1);
+
+        var result = (await _sut.GetFeedAsync(1)).ToList();
+
+        Assert.Single(result);
+        Assert.True(result[0].IsRepost);
+        Assert.Equal(7, result[0].RepostId);
+        Assert.Equal("reposter", result[0].RepostedByUserName);
+        Assert.Equal("Look at this", result[0].QuoteContent);
+        Assert.Equal("Original yap", result[0].Content);
     }
 }

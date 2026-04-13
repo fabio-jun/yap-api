@@ -1,3 +1,4 @@
+using Blog.Application.Interfaces;
 using Blog.Application.Services;
 using Blog.Domain.Entities;
 using Blog.Domain.Interfaces;
@@ -8,11 +9,12 @@ namespace Blog.Tests;
 public class FollowServiceTests
 {
     private readonly IFollowRepository _followRepository = Substitute.For<IFollowRepository>();
+    private readonly INotificationService _notificationService = Substitute.For<INotificationService>();
     private readonly FollowService _sut;
 
     public FollowServiceTests()
     {
-        _sut = new FollowService(_followRepository);
+        _sut = new FollowService(_followRepository, _notificationService);
     }
 
     [Fact]
@@ -29,19 +31,23 @@ public class FollowServiceTests
         var result = await _sut.ToggleFollowAsync(1, 2);
 
         Assert.True(result);
-        await _followRepository.Received(1).AddAsync(Arg.Is<Follow>(f => f.FollowerId == 1 && f.FollowingId == 2));
+        await _followRepository.Received(1).AddAsync(Arg.Is<Follow>(f => f.FollowerId == 1 && f.FollowedId == 2));
+        await _notificationService.Received(1).CreateNotificationAsync(
+            NotificationType.Follow, 1, 2, null);
     }
 
     [Fact]
     public async Task ToggleFollowAsync_AlreadyFollowing_RemovesFollowAndReturnsFalse()
     {
-        var existing = new Follow { FollowerId = 1, FollowingId = 2 };
+        var existing = new Follow { FollowerId = 1, FollowedId = 2 };
         _followRepository.GetAsync(1, 2).Returns(existing);
 
         var result = await _sut.ToggleFollowAsync(1, 2);
 
         Assert.False(result);
         await _followRepository.Received(1).DeleteAsync(existing);
+        await _notificationService.Received(1).DeleteNotificationAsync(
+            NotificationType.Follow, 1, 2, null);
     }
 
     [Fact]
@@ -77,7 +83,7 @@ public class FollowServiceTests
     [Fact]
     public async Task IsFollowingAsync_Following_ReturnsTrue()
     {
-        _followRepository.GetAsync(1, 2).Returns(new Follow { FollowerId = 1, FollowingId = 2 });
+        _followRepository.GetAsync(1, 2).Returns(new Follow { FollowerId = 1, FollowedId = 2 });
 
         var result = await _sut.IsFollowingAsync(1, 2);
 
