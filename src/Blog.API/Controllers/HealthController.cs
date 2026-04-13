@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace Blog.API.Controllers;
 
@@ -13,6 +14,7 @@ public class HealthController : ControllerBase
     // IActionResult (not Task<IActionResult>) — synchronous because there's no async work.
     // No database call — this is intentionally lightweight to avoid false negatives from DB issues.
     [HttpGet]
+    [SwaggerOperation(Summary = "Health check", Description = "Returns a lightweight API health response with the current UTC timestamp.")]
     public IActionResult Get()
     {
         // Anonymous object with two properties, serialized to JSON.

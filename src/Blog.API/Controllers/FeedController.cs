@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Blog.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace Blog.API.Controllers;
 
@@ -21,6 +22,7 @@ public class FeedController : ControllerBase
     // [Authorize] — requires a valid JWT (the feed is inherently user-specific).
     [HttpGet]
     [Authorize]
+    [SwaggerOperation(Summary = "Get personalized feed", Description = "Returns yaps from users followed by the authenticated user.")]
     public async Task<IActionResult> GetFeed()
     {
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);

@@ -3,6 +3,7 @@ using Blog.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace Blog.API.Controllers;
 
@@ -24,6 +25,7 @@ public class DirectMessagesController : ControllerBase
     // GET api/messages — returns the conversation list (inbox view).
     // Shows the most recent message from each conversation partner.
     [HttpGet]
+    [SwaggerOperation(Summary = "Get conversations", Description = "Returns the authenticated user's direct-message inbox, grouped by conversation partner.")]
     public async Task<IActionResult> GetConversations()
     {
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
@@ -34,6 +36,7 @@ public class DirectMessagesController : ControllerBase
     // GET api/messages/{userId} — returns the full message history with a specific user.
     // {userId} here is the other participant in the conversation (not the current user).
     [HttpGet("{userId}")]
+    [SwaggerOperation(Summary = "Get conversation", Description = "Returns message history between the authenticated user and another user.")]
     public async Task<IActionResult> GetConversation(int userId)
     {
         var currentUserId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
@@ -44,6 +47,7 @@ public class DirectMessagesController : ControllerBase
     // POST api/messages/{userId} — sends a new message to the specified user.
     // SendMessageRequest (from body) contains the message content.
     [HttpPost("{userId}")]
+    [SwaggerOperation(Summary = "Send direct message", Description = "Sends a direct message from the authenticated user to the target user.")]
     public async Task<IActionResult> Send(int userId, SendMessageRequest request)
     {
         var senderId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
@@ -54,6 +58,7 @@ public class DirectMessagesController : ControllerBase
     // DELETE api/messages/msg/{id} — deletes a specific message (sender only).
     // "msg/{id}" avoids route conflict with GET {userId} (both would match an int).
     [HttpDelete("msg/{id}")]
+    [SwaggerOperation(Summary = "Delete direct message", Description = "Deletes a direct message sent by the authenticated user.")]
     public async Task<IActionResult> Delete(int id)
     {
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);

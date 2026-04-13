@@ -3,6 +3,7 @@ using Blog.Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace Blog.API.Controllers;
 
@@ -23,6 +24,7 @@ public class TagController : ControllerBase
     // GET api/tag — public, returns all tags ordered by popularity (most posts first).
     // Used by the frontend to display trending/popular hashtags.
     [HttpGet]
+    [SwaggerOperation(Summary = "Get tags", Description = "Returns hashtags ordered by popularity.")]
     public async Task<IActionResult> GetAll()
     {
         var tags = await _tagService.GetAllAsync();

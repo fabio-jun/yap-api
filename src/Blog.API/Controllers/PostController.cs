@@ -3,6 +3,7 @@ using Blog.Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using System.Security.Claims;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace Blog.API.Controllers;
 
@@ -24,6 +25,7 @@ public class PostController : ControllerBase
     // Nullable types (string?, int?) allow the parameters to be optional.
     // The method dispatches to different service methods based on which params are present.
     [HttpGet]
+    [SwaggerOperation(Summary = "List, search, or filter yaps", Description = "Returns yaps. Use search, tag, page, and pageSize query parameters to search, filter by hashtag, or paginate.")]
     public async Task<IActionResult> GetAll(
         [FromQuery] string? search,
         [FromQuery] string? tag,
@@ -64,6 +66,7 @@ public class PostController : ControllerBase
 
     // GET api/post/user/{userId} — route parameter {userId} is bound to the method parameter.
     [HttpGet("user/{userId}")]
+    [SwaggerOperation(Summary = "Get yaps by user", Description = "Returns yaps authored by the specified user.")]
     public async Task<IActionResult> GetByUserId(int userId)
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
@@ -75,6 +78,7 @@ public class PostController : ControllerBase
 
     // GET api/post/{id} — returns a single post by ID.
     [HttpGet("{id}")]
+    [SwaggerOperation(Summary = "Get yap by id", Description = "Returns a single yap with engagement metadata for the current viewer when authenticated.")]
     public async Task<IActionResult> GetById(int id)
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
@@ -88,6 +92,7 @@ public class PostController : ControllerBase
     // [Authorize] — rejects unauthenticated requests with 401. The JWT must be valid.
     [HttpPost]
     [Authorize]
+    [SwaggerOperation(Summary = "Create yap", Description = "Creates a new yap for the authenticated user. Supports text, image/video URL, hashtags, and mentions.")]
     public async Task<IActionResult> Create(CreatePostRequest request)
     {
         // User.FindFirst(ClaimTypes.NameIdentifier)! — the '!' (null-forgiving) is safe here
@@ -100,6 +105,7 @@ public class PostController : ControllerBase
     // PUT api/post/{id} — updates a post. Service layer checks ownership (author or admin).
     [HttpPut("{id}")]
     [Authorize]
+    [SwaggerOperation(Summary = "Update yap", Description = "Updates a yap. Only the author or an admin can update it.")]
     public async Task<IActionResult> Update(int id, UpdatePostRequest request)
     {
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
@@ -113,6 +119,7 @@ public class PostController : ControllerBase
     // DELETE api/post/{id} — deletes a post. Service layer checks ownership.
     [HttpDelete("{id}")]
     [Authorize]
+    [SwaggerOperation(Summary = "Delete yap", Description = "Deletes a yap. Only the author or an admin can delete it.")]
     public async Task<IActionResult> Delete(int id)
     {
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);

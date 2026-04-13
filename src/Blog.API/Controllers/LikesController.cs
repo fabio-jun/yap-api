@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Blog.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace Blog.API.Controllers;
 
@@ -23,6 +24,7 @@ public class LikesController : ControllerBase
     // Returns both the new state (liked: true/false) and the updated count.
     [HttpPost]
     [Authorize]
+    [SwaggerOperation(Summary = "Toggle like", Description = "Likes or unlikes a yap for the authenticated user and returns the new like state and count.")]
     public async Task<IActionResult> Toggle(int postId)
     {
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
@@ -38,6 +40,7 @@ public class LikesController : ControllerBase
     // GET api/posts/{postId}/likes — returns like count and whether the current user liked.
     // Public endpoint — works for both authenticated and anonymous users.
     [HttpGet]
+    [SwaggerOperation(Summary = "Get like state", Description = "Returns the like count and whether the current authenticated viewer has liked the yap.")]
     public async Task<IActionResult> GetLikes(int postId)
     {
         var count = await _likeService.GetCountAsync(postId);
@@ -51,5 +54,13 @@ public class LikesController : ControllerBase
         }
 
         return Ok(new { liked, count });
+    }
+
+    [HttpGet("users")]
+    [SwaggerOperation(Summary = "Get users who liked a yap", Description = "Returns the profile list shown in the Liked by modal, ordered by newest like first.")]
+    public async Task<IActionResult> GetUsers(int postId)
+    {
+        var users = await _likeService.GetUsersAsync(postId);
+        return Ok(users);
     }
 }

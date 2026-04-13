@@ -3,6 +3,7 @@ using Blog.Application.DTOs.Users;
 using Blog.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace Blog.API.Controllers;
 
@@ -21,6 +22,7 @@ public class UsersController : ControllerBase
     // GET api/users?search=nome — searches users by name (query string parameter).
     // [FromQuery] — explicitly binds from the URL query string.
     [HttpGet]
+    [SwaggerOperation(Summary = "Search users", Description = "Searches users by username or display name.")]
     public async Task<IActionResult> Search([FromQuery] string? search)
     {
         if (string.IsNullOrWhiteSpace(search))
@@ -35,6 +37,7 @@ public class UsersController : ControllerBase
     // {id:int} — route constraint: only matches if {id} is a valid integer.
     // This prevents ambiguity with other string-based routes (like "suggested").
     [HttpGet("{id:int}")]
+    [SwaggerOperation(Summary = "Get user profile", Description = "Returns public profile details and follow counts for a user.")]
     public async Task<IActionResult> GetById(int id)
     {
         var user = await _userService.GetByIdAsync(id);
@@ -45,6 +48,7 @@ public class UsersController : ControllerBase
     // Requires authentication to know which user is requesting suggestions.
     [HttpGet("suggested")]
     [Authorize]
+    [SwaggerOperation(Summary = "Get suggested users", Description = "Returns suggested users for the authenticated user to follow.")]
     public async Task<IActionResult> GetSuggested()
     {
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);
@@ -57,6 +61,7 @@ public class UsersController : ControllerBase
     // "me" is a literal route segment (not a parameter) — RESTful convention for "current user".
     [HttpPut("me")]
     [Authorize]
+    [SwaggerOperation(Summary = "Update current user profile", Description = "Updates the authenticated user's display name, bio, profile image, username, or email.")]
     public async Task<IActionResult> UpdateMe(UpdateUserRequest request)
     {
         var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)!.Value);

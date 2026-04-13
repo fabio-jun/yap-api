@@ -2,6 +2,7 @@ using CloudinaryDotNet;
 using CloudinaryDotNet.Actions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Annotations;
 
 namespace Blog.API.Controllers;
 
@@ -23,6 +24,7 @@ public class UploadController : ControllerBase
     // The frontend sends the file via FormData (not JSON).
     [HttpPost]
     [Authorize]
+    [SwaggerOperation(Summary = "Upload media", Description = "Uploads an image or video to Cloudinary and returns its secure URL. Images must be under 5MB; videos must be under 50MB.")]
     public async Task<IActionResult> Upload(IFormFile file)
     {
         // Input validation — reject empty or missing files.

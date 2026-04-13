@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text;
 using Blog.API.Middlewares;
 using Blog.Infrastructure;
@@ -10,6 +11,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi;
 
 // --- APPLICATION BUILDER PHASE ---
 // WebApplication.CreateBuilder — creates the host with default configuration:
@@ -56,7 +58,47 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 
 // Swagger/OpenAPI — auto-generates API documentation at /swagger.
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "Yap API",
+        Version = "v1",
+        Description = "REST API for Yap, a social networking platform built with ASP.NET Core and Entity Framework Core.",
+    });
+
+    options.EnableAnnotations();
+
+    var apiXml = Path.Combine(AppContext.BaseDirectory, $"{Assembly.GetExecutingAssembly().GetName().Name}.xml");
+    if (File.Exists(apiXml))
+    {
+        options.IncludeXmlComments(apiXml);
+    }
+
+    var applicationXml = Path.Combine(AppContext.BaseDirectory, "Blog.Application.xml");
+    if (File.Exists(applicationXml))
+    {
+        options.IncludeXmlComments(applicationXml);
+    }
+
+    options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "JWT Authorization header using the Bearer scheme. Example: Bearer eyJhbGciOi...",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT"
+    });
+
+    options.AddSecurityRequirement(openApiDocument => new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecuritySchemeReference("Bearer", openApiDocument, null),
+            new List<string>()
+        }
+    });
+});
 
 // --- JWT Authentication ---
 // AddAuthentication — registers the authentication services with JWT Bearer as the default scheme.
@@ -96,6 +138,10 @@ builder.Services.AddScoped<ILikeRepository, LikeRepository>();
 builder.Services.AddScoped<IFollowRepository, FollowRepository>();
 builder.Services.AddScoped<IBookmarkRepository, BookmarkRepository>();
 builder.Services.AddScoped<IDirectMessageRepository, DirectMessageRepository>();
+builder.Services.AddScoped<INotificationRepository, NotificationRepository>();
+builder.Services.AddScoped<IRepostRepository, RepostRepository>();
+builder.Services.AddScoped<IBlockRepository, BlockRepository>();
+builder.Services.AddScoped<IReportRepository, ReportRepository>();
 
 // Application services (business logic layer)
 builder.Services.AddScoped<IAuthService, AuthService>();
@@ -107,6 +153,10 @@ builder.Services.AddScoped<ILikeService, LikeService>();
 builder.Services.AddScoped<IFollowService, FollowService>();
 builder.Services.AddScoped<IBookmarkService, BookmarkService>();
 builder.Services.AddScoped<IDirectMessageService, DirectMessageService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IRepostService, RepostService>();
+builder.Services.AddScoped<IBlockService, BlockService>();
+builder.Services.AddScoped<IReportService, ReportService>();
 
 // --- Cloudinary Configuration ---
 // AddSingleton — creates one instance shared across all requests (Cloudinary client is thread-safe).
@@ -148,7 +198,7 @@ app.UseCors("AllowFrontend");
 app.UseMiddleware<ExceptionMiddleware>();
 
 // Swagger UI — only enabled in Development environment (not exposed in production).
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() || app.Configuration.GetValue<bool>("Swagger:Enabled"))
 {
     app.UseSwagger();
     app.UseSwaggerUI();
