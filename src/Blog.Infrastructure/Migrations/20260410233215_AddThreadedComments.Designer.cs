@@ -3,6 +3,7 @@ using System;
 using Blog.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Blog.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260410233215_AddThreadedComments")]
+    partial class AddThreadedComments
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,35 +24,6 @@ namespace Blog.Infrastructure.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
-
-            modelBuilder.Entity("Blog.Domain.Entities.BlockedUser", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("BlockedId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("BlockerId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BlockedId");
-
-                    b.HasIndex("BlockerId", "BlockedId")
-                        .IsUnique();
-
-                    b.ToTable("BlockedUsers", (string)null);
-                });
 
             modelBuilder.Entity("Blog.Domain.Entities.Bookmark", b =>
                 {
@@ -295,60 +269,6 @@ namespace Blog.Infrastructure.Migrations
                     b.ToTable("RefreshTokens", (string)null);
                 });
 
-            modelBuilder.Entity("Blog.Domain.Entities.Report", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("timestamp with time zone")
-                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
-
-                    b.Property<string>("Details")
-                        .HasMaxLength(1000)
-                        .HasColumnType("character varying(1000)");
-
-                    b.Property<int?>("PostId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasMaxLength(80)
-                        .HasColumnType("character varying(80)");
-
-                    b.Property<int?>("ReportedUserId")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("ReporterId")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("ReviewedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int?>("ReviewerId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PostId");
-
-                    b.HasIndex("ReportedUserId");
-
-                    b.HasIndex("ReporterId");
-
-                    b.HasIndex("ReviewerId");
-
-                    b.ToTable("Reports", (string)null);
-                });
-
             modelBuilder.Entity("Blog.Domain.Entities.Repost", b =>
                 {
                     b.Property<int>("Id")
@@ -462,25 +382,6 @@ namespace Blog.Infrastructure.Migrations
                         .HasDatabaseName("IX_Users_UserName");
 
                     b.ToTable("Users", (string)null);
-                });
-
-            modelBuilder.Entity("Blog.Domain.Entities.BlockedUser", b =>
-                {
-                    b.HasOne("Blog.Domain.Entities.User", "Blocked")
-                        .WithMany()
-                        .HasForeignKey("BlockedId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Blog.Domain.Entities.User", "Blocker")
-                        .WithMany()
-                        .HasForeignKey("BlockerId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Blocked");
-
-                    b.Navigation("Blocker");
                 });
 
             modelBuilder.Entity("Blog.Domain.Entities.Bookmark", b =>
@@ -650,38 +551,6 @@ namespace Blog.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
-                });
-
-            modelBuilder.Entity("Blog.Domain.Entities.Report", b =>
-                {
-                    b.HasOne("Blog.Domain.Entities.Post", "Post")
-                        .WithMany()
-                        .HasForeignKey("PostId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("Blog.Domain.Entities.User", "ReportedUser")
-                        .WithMany()
-                        .HasForeignKey("ReportedUserId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.HasOne("Blog.Domain.Entities.User", "Reporter")
-                        .WithMany()
-                        .HasForeignKey("ReporterId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Blog.Domain.Entities.User", "Reviewer")
-                        .WithMany()
-                        .HasForeignKey("ReviewerId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
-                    b.Navigation("Post");
-
-                    b.Navigation("ReportedUser");
-
-                    b.Navigation("Reporter");
-
-                    b.Navigation("Reviewer");
                 });
 
             modelBuilder.Entity("Blog.Domain.Entities.Repost", b =>

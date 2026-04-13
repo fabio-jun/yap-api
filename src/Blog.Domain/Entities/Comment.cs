@@ -1,22 +1,21 @@
 namespace Blog.Domain.Entities;
 
-// Entity class — represents the "Comments" table in the database.
-// A comment belongs to one Post and one User (the author).
 public class Comment
 {
-    // Primary Key — auto-incremented
     public int Id { get; set; }
     public required string Content { get; set; }
     public DateTime CreatedAt { get; set; }
 
-    // Foreign Key — references Posts.Id
+    // FK 
     public int PostId { get; set; }
-    // Navigation property — doesn't create a column in the DB.
-    // EF Core uses it to resolve the relationship when you do .Include(c => c.Post)
     public Post? Post { get; set; }
 
-    // Foreign Key — references Users.Id
+    // FK
     public int AuthorId { get; set; }
-    // Navigation property for the comment's author
     public User? Author { get; set; }
+
+    // FK (Reply to a comment)
+    public int? ParentCommentId { get; set; }
+    public Comment? ParentComment { get; set; }
+    public ICollection<Comment>? Replies { get; set; }
 }

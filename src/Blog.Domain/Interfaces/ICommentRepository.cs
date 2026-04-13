@@ -2,15 +2,17 @@ using Blog.Domain.Entities;
 
 namespace Blog.Domain.Interfaces;
 
-// Repository interface for Comment data access.
 public interface ICommentRepository
 {
-    // Returns all comments for a specific post
+    // Returns all comments for a post
     Task<IEnumerable<Comment>> GetByPostIdAsync(int postId);
 
-    // Returns a single comment by ID (used for delete authorization checks)
+    // Returns a comment by its ID
     Task<Comment?> GetByIdAsync(int id);
 
+    // Returns a comment with its associated post, used for authorization checks
+    Task<Comment?> GetByIdWithPostAsync(int id);
+    
     Task AddAsync(Comment comment);
     Task DeleteAsync(Comment comment);
 }

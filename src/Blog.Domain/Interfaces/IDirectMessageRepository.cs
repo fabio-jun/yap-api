@@ -2,13 +2,13 @@ using Blog.Domain.Entities;
 
 namespace Blog.Domain.Interfaces;
 
-// Repository interface for DirectMessage data access.
+
 public interface IDirectMessageRepository
 {
-    // Returns all messages between two users, ordered chronologically (for chat view)
+    // Returns all messages between two users, ordered chronologically, for chat view
     Task<IEnumerable<DirectMessage>> GetConversationAsync(int userId1, int userId2);
 
-    // Returns the latest message from each conversation the user participates in (for inbox)
+    // Returns the latest message from each conversation the user participates in, for inbox
     Task<IEnumerable<DirectMessage>> GetConversationsListAsync(int userId);
 
     // Finds a single message by ID (used for delete authorization)

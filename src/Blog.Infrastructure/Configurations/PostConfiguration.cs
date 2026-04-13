@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Blog.Infrastructure.Configurations;
 
-// EF Core Fluent API configuration for the Post entity.
 public class PostConfiguration : IEntityTypeConfiguration<Post>
 {
     public void Configure(EntityTypeBuilder<Post> builder)
@@ -13,7 +12,6 @@ public class PostConfiguration : IEntityTypeConfiguration<Post>
 
         builder.HasKey(p => p.Id);
 
-        // Content limited to 280 characters — yap limit, like Twitter/X
         builder.Property(p => p.Content)
             .IsRequired()
             .HasMaxLength(280);
@@ -22,7 +20,6 @@ public class PostConfiguration : IEntityTypeConfiguration<Post>
             .IsRequired()
             .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
-        // Nullable column — IsRequired(false) means the column allows NULL
         builder.Property(p => p.UpdatedAt)
             .IsRequired(false);
 

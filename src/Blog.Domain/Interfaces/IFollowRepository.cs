@@ -2,11 +2,11 @@ using Blog.Domain.Entities;
 
 namespace Blog.Domain.Interfaces;
 
-// Repository interface for Follow data access.
+
 public interface IFollowRepository
 {
-    // Checks if followerId is following followingId. Returns null if no relationship exists.
-    Task<Follow?> GetAsync(int followerId, int followingId);
+    // Checks if followerId follows followedId. Returns null if no relationship exists.
+    Task<Follow?> GetAsync(int followerId, int followedId);
 
     // Returns the list of User objects that follow userId
     Task<IEnumerable<User>> GetFollowersAsync(int userId);

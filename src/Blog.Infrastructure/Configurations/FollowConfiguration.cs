@@ -10,22 +10,28 @@ public class FollowConfiguration : IEntityTypeConfiguration<Follow>
 {
     public void Configure(EntityTypeBuilder<Follow> builder)
     {
-        // Composite PK — (FollowerId, FollowingId) ensures unique follow relationships
-        builder.HasKey(f => new { f.FollowerId, f.FollowingId });
+        // Keep the existing database column name while exposing clearer C# property names.
+        builder.Property(f => f.FollowedId)
+            .HasColumnName("FollowingId");
 
-        // Follow → Follower (the user who follows)
-        // Note: Follower.Following collection — "the user's follow actions"
+        // Composite PK: one follower can follow a given user only once.
+        builder.HasKey(f => new { f.FollowerId, f.FollowedId });
+
+        builder.HasIndex(f => f.FollowedId)
+            .HasDatabaseName("IX_Follows_FollowingId");
+
+        // Follow -> Follower: the user who follows.
         builder.HasOne(f => f.Follower)
             .WithMany(u => u.Following)
             .HasForeignKey(f => f.FollowerId)
+            .HasConstraintName("FK_Follows_Users_FollowerId")
             .OnDelete(DeleteBehavior.Cascade);
-        // SQL equivalent: FOREIGN KEY (FollowerId) REFERENCES Users(Id) ON DELETE CASCADE
 
-        // Follow → Following (the user being followed)
-        // Note: Following.Followers collection — "people who follow this user"
-        builder.HasOne(f => f.Following)
+        // Follow -> Followed: the user being followed.
+        builder.HasOne(f => f.Followed)
             .WithMany(u => u.Followers)
-            .HasForeignKey(f => f.FollowingId)
+            .HasForeignKey(f => f.FollowedId)
+            .HasConstraintName("FK_Follows_Users_FollowingId")
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

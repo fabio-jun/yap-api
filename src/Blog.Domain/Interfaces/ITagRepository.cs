@@ -5,10 +5,9 @@ namespace Blog.Domain.Interfaces;
 // Repository interface for Tag data access.
 public interface ITagRepository
 {
-    // Finds a tag by name — used during hashtag extraction to check if tag already exists
+    // Get a tag by its name. Returns null if not found.
     Task<Tag?> GetByNameAsync(string name);
-
-    // Returns all tags ordered by popularity (number of posts using each tag)
+    // Returns all tags
     Task<IEnumerable<Tag>> GetAllAsync();
 
     Task AddAsync(Tag tag);

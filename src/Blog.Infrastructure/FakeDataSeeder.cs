@@ -68,7 +68,7 @@ public static class FakeDataSeeder
                 follows.Add(new Follow
                 {
                     FollowerId = user.Id,
-                    FollowingId = target.Id,
+                    FollowedId = target.Id,
                     CreatedAt = now.AddDays(-faker.Random.Int(1, 30)),
                 });
             }

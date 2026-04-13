@@ -4,13 +4,10 @@ using System.Reflection;
 
 namespace Blog.Infrastructure;
 
-// DbContext is EF Core's main class — it represents a session with the database.
-// It translates C# LINQ queries into SQL and manages the connection, change tracking, and transactions.
-// AppDbContext inherits from DbContext and configures which entities map to which tables.
 public class AppDbContext : DbContext
 {
     // Constructor — receives DbContextOptions containing the connection string and provider (PostgreSQL).
-    // 'base(options)' passes the options to the parent DbContext constructor.
+    // base(options)- passes the options to the parent DbContext constructor.
     // The options are configured in Program.cs via builder.Services.AddDbContext<AppDbContext>(...).
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {
@@ -29,8 +26,12 @@ public class AppDbContext : DbContext
     public DbSet<Follow> Follows { get; set; }
     public DbSet<Bookmark> Bookmarks { get; set; }
     public DbSet<DirectMessage> DirectMessages { get; set; }
+    public DbSet<Notification> Notifications { get; set; }
+    public DbSet<Repost> Reposts { get; set; }
+    public DbSet<BlockedUser> BlockedUsers { get; set; }
+    public DbSet<Report> Reports { get; set; }
 
-    // OnModelCreating is called once when EF Core builds the internal model of the database.
+    // OnModelCreating is called when EF Core builds the internal model of the database.
     // This is where you configure relationships, constraints, indexes, etc. using Fluent API.
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
