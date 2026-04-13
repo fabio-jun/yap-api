@@ -5,50 +5,50 @@ using Blog.Application.Interfaces;
 
 namespace Blog.Application.Services;
 
-// Service that handles follow/unfollow logic and follower queries.
 public class FollowService : IFollowService
 {
     private readonly IFollowRepository _followRepository;
+    private readonly INotificationService _notificationService;
 
-    public FollowService(IFollowRepository followRepository)
+    public FollowService(
+        IFollowRepository followRepository,
+        INotificationService notificationService)
     {
         _followRepository = followRepository;
+        _notificationService = notificationService;
     }
 
-    // Toggles follow relationship — same pattern as LikeService.
-    // Returns true if now following, false if unfollowed.
-    public async Task<bool> ToggleFollowAsync(int followerId, int followingId)
+    public async Task<bool> ToggleFollowAsync(int followerId, int followedId)
     {
-        // Prevent self-following
-        if (followerId == followingId)
+        if (followerId == followedId)
             throw new ArgumentException("You cannot follow yourself.");
 
-        var existing = await _followRepository.GetAsync(followerId, followingId);
+        var existing = await _followRepository.GetAsync(followerId, followedId);
 
         if (existing != null)
         {
-            // Already following — remove the relationship
             await _followRepository.DeleteAsync(existing);
-            return false; // "unfollowed"
+            await _notificationService.DeleteNotificationAsync(
+                NotificationType.Follow, followerId, followedId, null);
+            return false;
         }
 
-        // Not following — create new Follow record
         var follow = new Follow
         {
             FollowerId = followerId,
-            FollowingId = followingId,
+            FollowedId = followedId,
             CreatedAt = DateTime.UtcNow
         };
 
         await _followRepository.AddAsync(follow);
-        return true; // "followed"
+        await _notificationService.CreateNotificationAsync(
+            NotificationType.Follow, followerId, followedId, null);
+        return true;
     }
 
-    // Returns list of users who follow the given user, mapped to DTOs.
     public async Task<IEnumerable<UserResponse>> GetFollowersAsync(int userId)
     {
         var users = await _followRepository.GetFollowersAsync(userId);
-        // .Select() — LINQ projection, transforms User entities into UserResponse DTOs
         return users.Select(u => new UserResponse
         {
             Id = u.Id,
@@ -60,7 +60,6 @@ public class FollowService : IFollowService
         });
     }
 
-    // Returns list of users the given user follows.
     public async Task<IEnumerable<UserResponse>> GetFollowingAsync(int userId)
     {
         var users = await _followRepository.GetFollowingAsync(userId);
@@ -75,10 +74,9 @@ public class FollowService : IFollowService
         });
     }
 
-    // Checks if a follow relationship exists between two users.
-    public async Task<bool> IsFollowingAsync(int followerId, int followingId)
+    public async Task<bool> IsFollowingAsync(int followerId, int followedId)
     {
-        var follow = await _followRepository.GetAsync(followerId, followingId);
+        var follow = await _followRepository.GetAsync(followerId, followedId);
         return follow != null;
     }
 }

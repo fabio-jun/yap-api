@@ -1,3 +1,5 @@
+using Blog.Application.DTOs.Mentions;
+
 namespace Blog.Application.DTOs.Posts;
 
 // DTO for returning post data to the client.
@@ -25,4 +27,16 @@ public class PostResponse
     // These are user-specific — different for each viewer
     public bool HasLiked { get; set; }
     public bool HasBookmarked { get; set; }
+    public int RepostCount { get; set; }
+    public bool HasReposted { get; set; }
+
+    public bool IsRepost { get; set; }
+    public int? RepostId { get; set; }
+    public int? RepostedByUserId { get; set; }
+    public string? RepostedByUserName { get; set; }
+    public string? RepostedByProfileImageUrl { get; set; }
+    public DateTime? RepostedAt { get; set; }
+    public string? QuoteContent { get; set; }
+    public int OriginalPostId { get; set; }
+    public List<MentionedUserResponse> MentionedUsers { get; set; } = [];
 }

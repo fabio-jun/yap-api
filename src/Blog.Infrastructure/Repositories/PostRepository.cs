@@ -64,7 +64,7 @@ public class PostRepository : IPostRepository
     {
         return await _context.Posts
             .Include(p => p.Author)
-            .Where(p => _context.Follows.Any(f => f.FollowerId == userId && f.FollowingId == p.AuthorId))
+            .Where(p => _context.Follows.Any(f => f.FollowerId == userId && f.FollowedId == p.AuthorId))
             .OrderByDescending(p => p.CreatedAt)
             .ToListAsync();
     }

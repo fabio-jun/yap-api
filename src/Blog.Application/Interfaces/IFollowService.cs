@@ -6,7 +6,7 @@ namespace Blog.Application.Interfaces;
 public interface IFollowService
 {
     // Toggles follow relationship. Returns true if now following, false if unfollowed.
-    Task<bool> ToggleFollowAsync(int followerId, int followingId);
+    Task<bool> ToggleFollowAsync(int followerId, int followedId);
 
     // Returns list of users who follow the given user
     Task<IEnumerable<UserResponse>> GetFollowersAsync(int userId);
@@ -14,6 +14,6 @@ public interface IFollowService
     // Returns list of users the given user follows
     Task<IEnumerable<UserResponse>> GetFollowingAsync(int userId);
 
-    // Checks if followerId is following followingId
-    Task<bool> IsFollowingAsync(int followerId, int followingId);
+    // Checks if followerId follows followedId
+    Task<bool> IsFollowingAsync(int followerId, int followedId);
 }

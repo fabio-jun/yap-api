@@ -2,245 +2,115 @@ using System.Text.RegularExpressions;
 using Blog.Domain.Entities;
 using Blog.Domain.Interfaces;
 using Blog.Application.DTOs;
+using Blog.Application.DTOs.Mentions;
 using Blog.Application.DTOs.Posts;
 using Blog.Application.Interfaces;
 
 namespace Blog.Application.Services;
 
-// Service that handles all post (yap) business logic.
-// Orchestrates multiple repositories and maps entities to DTOs.
 public class PostService : IPostService
 {
-    // Dependencies injected via constructor — each repository handles one entity's data access
     private readonly IPostRepository _postRepository;
     private readonly ITagRepository _tagRepository;
     private readonly ILikeRepository _likeRepository;
     private readonly IBookmarkRepository _bookmarkRepository;
+    private readonly IRepostRepository _repostRepository;
+    private readonly IUserRepository _userRepository;
+    private readonly INotificationService _notificationService;
+    private readonly IBlockRepository _blockRepository;
 
-    public PostService(IPostRepository postRepository, ITagRepository tagRepository,
-        ILikeRepository likeRepository, IBookmarkRepository bookmarkRepository)
+    public PostService(
+        IPostRepository postRepository,
+        ITagRepository tagRepository,
+        ILikeRepository likeRepository,
+        IBookmarkRepository bookmarkRepository,
+        IRepostRepository repostRepository,
+        IUserRepository userRepository,
+        INotificationService notificationService,
+        IBlockRepository blockRepository)
     {
         _postRepository = postRepository;
         _tagRepository = tagRepository;
         _likeRepository = likeRepository;
         _bookmarkRepository = bookmarkRepository;
+        _repostRepository = repostRepository;
+        _userRepository = userRepository;
+        _notificationService = notificationService;
+        _blockRepository = blockRepository;
     }
 
-    // Returns all posts (most recent first), enriched with like/bookmark info for the current user.
-    // 'int? currentUserId = null' — optional parameter with default value.
-    // If the user is not authenticated, currentUserId is null and HasLiked/HasBookmarked will be false.
     public async Task<IEnumerable<PostResponse>> GetAllAsync(int? currentUserId = null)
     {
         var posts = await _postRepository.GetAllAsync();
-        var responses = new List<PostResponse>();
-
-        // Manual mapping: Entity → DTO. No AutoMapper — explicit and visible.
-        foreach (var post in posts)
-        {
-            responses.Add(new PostResponse
-            {
-                Id = post.Id,
-                Content = post.Content,
-                CreatedAt = post.CreatedAt,
-                UpdatedAt = post.UpdatedAt,
-                AuthorId = post.AuthorId,
-                // '?.' — null-conditional operator. If Author is null, returns null instead of throwing.
-                // '?? string.Empty' — null-coalescing operator. If left side is null, use empty string.
-                AuthorName = post.Author?.UserName ?? string.Empty,
-                AuthorProfileImageUrl = post.Author?.ProfileImageUrl,
-                ImageUrl = post.ImageUrl,
-                // Each post needs a separate COUNT query for likes
-                LikeCount = await _likeRepository.GetCountByPostIdAsync(post.Id),
-                // '.HasValue' checks if the nullable int has a value (not null)
-                // '&&' short-circuits: if HasValue is false, the right side is not evaluated
-                HasLiked = currentUserId.HasValue
-                    && await _likeRepository.GetAsync(post.Id, currentUserId.Value) != null,
-                HasBookmarked = currentUserId.HasValue
-                    && await _bookmarkRepository.GetAsync(post.Id, currentUserId.Value) != null
-            });
-        }
-
-        return responses;
+        var reposts = await _repostRepository.GetAllAsync() ?? [];
+        return await BuildTimeline(
+            await FilterBlockedPosts(posts, currentUserId),
+            await FilterBlockedReposts(reposts, currentUserId),
+            currentUserId);
     }
 
-    // Returns posts by a specific user (for profile page)
     public async Task<IEnumerable<PostResponse>> GetByUserIdAsync(int userId, int? currentUserId = null)
     {
         var posts = await _postRepository.GetByUserIdAsync(userId);
-        var responses = new List<PostResponse>();
-
-        foreach (var post in posts)
-        {
-            responses.Add(new PostResponse
-            {
-                Id = post.Id,
-                Content = post.Content,
-                CreatedAt = post.CreatedAt,
-                UpdatedAt = post.UpdatedAt,
-                AuthorId = post.AuthorId,
-                AuthorName = post.Author?.UserName ?? string.Empty,
-                AuthorProfileImageUrl = post.Author?.ProfileImageUrl,
-                ImageUrl = post.ImageUrl,
-                LikeCount = await _likeRepository.GetCountByPostIdAsync(post.Id),
-                HasLiked = currentUserId.HasValue
-                    && await _likeRepository.GetAsync(post.Id, currentUserId.Value) != null,
-                HasBookmarked = currentUserId.HasValue
-                    && await _bookmarkRepository.GetAsync(post.Id, currentUserId.Value) != null
-            });
-        }
-
-        return responses;
+        var reposts = await _repostRepository.GetByUserIdAsync(userId) ?? [];
+        return await BuildTimeline(
+            await FilterBlockedPosts(posts, currentUserId),
+            await FilterBlockedReposts(reposts, currentUserId),
+            currentUserId);
     }
 
-    // Returns paginated posts — wraps results in PagedResponse<T> with metadata.
     public async Task<PagedResponse<PostResponse>> GetAllPagedAsync(int page, int pageSize, int? currentUserId = null)
     {
-        // Tuple destructuring: (Items, TotalCount) = await ...
-        var (posts, totalCount) = await _postRepository.GetAllPagedAsync(page, pageSize);
-        var responses = new List<PostResponse>();
-
-        foreach (var post in posts)
-        {
-            responses.Add(new PostResponse
-            {
-                Id = post.Id,
-                Content = post.Content,
-                CreatedAt = post.CreatedAt,
-                UpdatedAt = post.UpdatedAt,
-                AuthorId = post.AuthorId,
-                AuthorName = post.Author?.UserName ?? string.Empty,
-                AuthorProfileImageUrl = post.Author?.ProfileImageUrl,
-                ImageUrl = post.ImageUrl,
-                LikeCount = await _likeRepository.GetCountByPostIdAsync(post.Id),
-                HasLiked = currentUserId.HasValue
-                    && await _likeRepository.GetAsync(post.Id, currentUserId.Value) != null,
-                HasBookmarked = currentUserId.HasValue
-                    && await _bookmarkRepository.GetAsync(post.Id, currentUserId.Value) != null
-            });
-        }
+        var posts = await _postRepository.GetAllAsync();
+        var reposts = await _repostRepository.GetAllAsync() ?? [];
+        var all = (await BuildTimeline(
+            await FilterBlockedPosts(posts, currentUserId),
+            await FilterBlockedReposts(reposts, currentUserId),
+            currentUserId)).ToList();
 
         return new PagedResponse<PostResponse>
         {
-            Items = responses,
+            Items = all.Skip((page - 1) * pageSize).Take(pageSize),
             Page = page,
             PageSize = pageSize,
-            TotalCount = totalCount
+            TotalCount = all.Count
         };
     }
 
-    // Full-text search on post content
     public async Task<IEnumerable<PostResponse>> SearchAsync(string query, int? currentUserId = null)
     {
         var posts = await _postRepository.SearchAsync(query);
-        var responses = new List<PostResponse>();
-
-        foreach (var post in posts)
-        {
-            responses.Add(new PostResponse
-            {
-                Id = post.Id,
-                Content = post.Content,
-                CreatedAt = post.CreatedAt,
-                UpdatedAt = post.UpdatedAt,
-                AuthorId = post.AuthorId,
-                AuthorName = post.Author?.UserName ?? string.Empty,
-                AuthorProfileImageUrl = post.Author?.ProfileImageUrl,
-                ImageUrl = post.ImageUrl,
-                LikeCount = await _likeRepository.GetCountByPostIdAsync(post.Id),
-                HasLiked = currentUserId.HasValue
-                    && await _likeRepository.GetAsync(post.Id, currentUserId.Value) != null,
-                HasBookmarked = currentUserId.HasValue
-                    && await _bookmarkRepository.GetAsync(post.Id, currentUserId.Value) != null
-            });
-        }
-
-        return responses;
+        return await MapPosts(await FilterBlockedPosts(posts, currentUserId), currentUserId);
     }
 
-    // Returns posts filtered by hashtag
     public async Task<IEnumerable<PostResponse>> GetByTagAsync(string tagName, int? currentUserId = null)
     {
         var posts = await _postRepository.GetByTagAsync(tagName);
-        var responses = new List<PostResponse>();
-
-        foreach (var post in posts)
-        {
-            responses.Add(new PostResponse
-            {
-                Id = post.Id,
-                Content = post.Content,
-                CreatedAt = post.CreatedAt,
-                UpdatedAt = post.UpdatedAt,
-                AuthorId = post.AuthorId,
-                AuthorName = post.Author?.UserName ?? string.Empty,
-                AuthorProfileImageUrl = post.Author?.ProfileImageUrl,
-                ImageUrl = post.ImageUrl,
-                LikeCount = await _likeRepository.GetCountByPostIdAsync(post.Id),
-                HasLiked = currentUserId.HasValue
-                    && await _likeRepository.GetAsync(post.Id, currentUserId.Value) != null,
-                HasBookmarked = currentUserId.HasValue
-                    && await _bookmarkRepository.GetAsync(post.Id, currentUserId.Value) != null
-            });
-        }
-
-        return responses;
+        return await MapPosts(await FilterBlockedPosts(posts, currentUserId), currentUserId);
     }
 
-    // Returns posts from users the authenticated user follows (personalized feed)
     public async Task<IEnumerable<PostResponse>> GetFeedAsync(int userId)
     {
         var posts = await _postRepository.GetFeedAsync(userId);
-        var responses = new List<PostResponse>();
-
-        foreach (var post in posts)
-        {
-            responses.Add(new PostResponse
-            {
-                Id = post.Id,
-                Content = post.Content,
-                CreatedAt = post.CreatedAt,
-                UpdatedAt = post.UpdatedAt,
-                AuthorId = post.AuthorId,
-                AuthorName = post.Author?.UserName ?? string.Empty,
-                AuthorProfileImageUrl = post.Author?.ProfileImageUrl,
-                ImageUrl = post.ImageUrl,
-                LikeCount = await _likeRepository.GetCountByPostIdAsync(post.Id),
-                HasLiked = await _likeRepository.GetAsync(post.Id, userId) != null,
-                HasBookmarked = await _bookmarkRepository.GetAsync(post.Id, userId) != null
-            });
-        }
-
-        return responses;
+        var reposts = await _repostRepository.GetFeedAsync(userId) ?? [];
+        return await BuildTimeline(
+            await FilterBlockedPosts(posts, userId),
+            await FilterBlockedReposts(reposts, userId),
+            userId);
     }
 
-    // Returns a single post by ID with like info
     public async Task<PostResponse> GetByIdAsync(int id, int? currentUserId = null)
     {
         var post = await _postRepository.GetByIdAsync(id);
         if (post == null)
-            // KeyNotFoundException is caught by ExceptionMiddleware and mapped to HTTP 404
             throw new KeyNotFoundException("Post not found.");
 
-        return new PostResponse
-        {
-            Id = post.Id,
-            Content = post.Content,
-            CreatedAt = post.CreatedAt,
-            UpdatedAt = post.UpdatedAt,
-            AuthorId = post.AuthorId,
-            AuthorName = post.Author?.UserName ?? string.Empty,
-            ImageUrl = post.ImageUrl,
-            LikeCount = await _likeRepository.GetCountByPostIdAsync(post.Id),
-            HasLiked = currentUserId.HasValue
-                && await _likeRepository.GetAsync(post.Id, currentUserId.Value) != null
-        };
+        return await MapPost(post, currentUserId);
     }
 
-    // Creates a new post: validates length, saves to DB, extracts hashtags.
     public async Task<PostResponse> CreateAsync(CreatePostRequest request, int authorId)
     {
         if (request.Content.Length > 280)
-            // ArgumentException is caught by ExceptionMiddleware and mapped to HTTP 400
             throw new ArgumentException("Post must be 280 characters or less.");
 
         var post = new Post
@@ -251,61 +121,46 @@ public class PostService : IPostService
             ImageUrl = request.ImageUrl
         };
 
-        // INSERT INTO Posts (...) — the post.Id is auto-generated by the DB and set on the entity
         await _postRepository.AddAsync(post);
-
-        // Extract hashtags (e.g., #dev, #react) from content and create Tag + PostTag records
         await ExtractAndSaveTags(post, request.Content);
+        var mentionedUsers = await NotifyMentions(request.Content, authorId, post.Id);
 
         return new PostResponse
         {
             Id = post.Id,
+            OriginalPostId = post.Id,
             Content = post.Content,
             CreatedAt = post.CreatedAt,
             AuthorId = post.AuthorId,
             AuthorName = string.Empty,
-            ImageUrl = post.ImageUrl
+            ImageUrl = post.ImageUrl,
+            MentionedUsers = mentionedUsers
         };
     }
 
-    // Updates a post — checks authorization (author or admin only)
     public async Task<PostResponse> UpdateAsync(int postId, UpdatePostRequest request, int userId, string userRole)
     {
         var post = await _postRepository.GetByIdAsync(postId);
         if (post == null)
             throw new KeyNotFoundException("Post not found.");
 
-        // Authorization check: only the author or an admin can update
         if (post.AuthorId != userId && userRole != "Admin")
-            // UnauthorizedAccessException is caught by ExceptionMiddleware → HTTP 403
             throw new UnauthorizedAccessException("Not authorized.");
 
         if (request.Content.Length > 280)
             throw new ArgumentException("Post must be 280 characters or less.");
 
-        // Mutate the entity — EF Core tracks changes and generates the UPDATE SQL
         post.Content = request.Content;
         post.ImageUrl = request.ImageUrl;
         post.UpdatedAt = DateTime.UtcNow;
 
-        // Clear old tag associations and re-extract from new content
         post.PostTags?.Clear();
         await _postRepository.UpdateAsync(post);
         await ExtractAndSaveTags(post, request.Content);
 
-        return new PostResponse
-        {
-            Id = post.Id,
-            Content = post.Content,
-            CreatedAt = post.CreatedAt,
-            UpdatedAt = post.UpdatedAt,
-            AuthorId = post.AuthorId,
-            AuthorName = post.Author?.UserName ?? string.Empty,
-            ImageUrl = post.ImageUrl
-        };
+        return await MapPost(post, userId);
     }
 
-    // Deletes a post — checks authorization (author or admin only)
     public async Task DeleteAsync(int postId, int userId, string userRole)
     {
         var post = await _postRepository.GetByIdAsync(postId);
@@ -315,40 +170,146 @@ public class PostService : IPostService
         if (post.AuthorId != userId && userRole != "Admin")
             throw new UnauthorizedAccessException("Not authorized.");
 
-        // DELETE FROM Posts WHERE Id = postId
         await _postRepository.DeleteAsync(post);
     }
 
-    // Private helper — extracts hashtags from text using regex and creates Tag + PostTag records.
+    private async Task<List<PostResponse>> BuildTimeline(
+        IEnumerable<Post> posts,
+        IEnumerable<Repost> reposts,
+        int? currentUserId)
+    {
+        var responses = new List<PostResponse>();
+
+        foreach (var post in posts)
+        {
+            responses.Add(await MapPost(post, currentUserId));
+        }
+
+        foreach (var repost in reposts.Where(r => r.Post != null))
+        {
+            responses.Add(await MapPost(repost.Post!, currentUserId, repost));
+        }
+
+        return responses
+            .OrderByDescending(p => p.RepostedAt ?? p.CreatedAt)
+            .ToList();
+    }
+
+    private async Task<List<PostResponse>> MapPosts(IEnumerable<Post> posts, int? currentUserId)
+    {
+        var responses = new List<PostResponse>();
+        foreach (var post in posts)
+        {
+            responses.Add(await MapPost(post, currentUserId));
+        }
+
+        return responses;
+    }
+
+    private async Task<IEnumerable<Post>> FilterBlockedPosts(IEnumerable<Post> posts, int? currentUserId)
+    {
+        if (!currentUserId.HasValue) return posts;
+
+        var blockedIds = await _blockRepository.GetBlockedUserIdsForViewerAsync(currentUserId.Value) ?? [];
+        return posts.Where(p => !blockedIds.Contains(p.AuthorId));
+    }
+
+    private async Task<IEnumerable<Repost>> FilterBlockedReposts(IEnumerable<Repost> reposts, int? currentUserId)
+    {
+        if (!currentUserId.HasValue) return reposts;
+
+        var blockedIds = await _blockRepository.GetBlockedUserIdsForViewerAsync(currentUserId.Value) ?? [];
+        return reposts.Where(r =>
+            !blockedIds.Contains(r.UserId) &&
+            r.Post != null &&
+            !blockedIds.Contains(r.Post.AuthorId));
+    }
+
+    private async Task<PostResponse> MapPost(Post post, int? currentUserId, Repost? repost = null)
+    {
+        return new PostResponse
+        {
+            Id = post.Id,
+            OriginalPostId = post.Id,
+            Content = post.Content,
+            CreatedAt = post.CreatedAt,
+            UpdatedAt = post.UpdatedAt,
+            AuthorId = post.AuthorId,
+            AuthorName = post.Author?.UserName ?? string.Empty,
+            AuthorProfileImageUrl = post.Author?.ProfileImageUrl,
+            ImageUrl = post.ImageUrl,
+            LikeCount = await _likeRepository.GetCountByPostIdAsync(post.Id),
+            HasLiked = currentUserId.HasValue
+                && await _likeRepository.GetAsync(post.Id, currentUserId.Value) != null,
+            HasBookmarked = currentUserId.HasValue
+                && await _bookmarkRepository.GetAsync(post.Id, currentUserId.Value) != null,
+            RepostCount = await _repostRepository.GetCountByPostIdAsync(post.Id),
+            HasReposted = currentUserId.HasValue
+                && await _repostRepository.GetAsync(currentUserId.Value, post.Id) != null,
+            IsRepost = repost != null,
+            RepostId = repost?.Id,
+            RepostedByUserId = repost?.UserId,
+            RepostedByUserName = repost?.User?.UserName,
+            RepostedByProfileImageUrl = repost?.User?.ProfileImageUrl,
+            RepostedAt = repost?.CreatedAt,
+            QuoteContent = repost?.QuoteContent,
+            MentionedUsers = await ResolveMentions(post.Content)
+        };
+    }
+
+    private async Task<List<MentionedUserResponse>> NotifyMentions(string content, int actorId, int postId)
+    {
+        var mentionedUsers = await ResolveMentions(content);
+        foreach (var user in mentionedUsers.Where(u => u.UserId != actorId))
+        {
+            await _notificationService.CreateNotificationAsync(
+                NotificationType.Mention, actorId, user.UserId, postId);
+        }
+
+        return mentionedUsers;
+    }
+
+    private async Task<List<MentionedUserResponse>> ResolveMentions(string content)
+    {
+        var usernames = Regex.Matches(content, @"@([A-Za-z0-9_]+)")
+            .Select(m => m.Groups[1].Value)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var users = new List<MentionedUserResponse>();
+        foreach (var username in usernames)
+        {
+            var user = await _userRepository.GetByUserNameAsync(username);
+            if (user != null)
+            {
+                users.Add(new MentionedUserResponse { UserId = user.Id, UserName = user.UserName });
+            }
+        }
+
+        return users;
+    }
+
     private async Task ExtractAndSaveTags(Post post, string content)
     {
-        // Regex.Matches finds all #word patterns in the content.
-        // @"#(\w+)" — @ is a verbatim string (no escaping needed for backslashes).
-        // (\w+) captures the word after # (letters, digits, underscore).
         var hashtags = Regex.Matches(content, @"#(\w+)")
-            .Select(m => m.Groups[1].Value.ToLower()) // Extract captured group, normalize to lowercase
-            .Distinct()  // Remove duplicates (e.g., #dev #dev → just "dev")
-            .ToList();   // Materialize to List for iteration
+            .Select(m => m.Groups[1].Value.ToLower())
+            .Distinct()
+            .ToList();
 
         foreach (var tagName in hashtags)
         {
-            // Check if the tag already exists in the DB
             var tag = await _tagRepository.GetByNameAsync(tagName);
 
-            // If not, create a new Tag record
             if (tag == null)
             {
                 tag = new Tag { Name = tagName };
                 await _tagRepository.AddAsync(tag);
             }
 
-            // Create the join table record linking this post to this tag
-            // '??=' — null-coalescing assignment: only assign if left side is null
             post.PostTags ??= new List<PostTag>();
             post.PostTags.Add(new PostTag { PostId = post.Id, TagId = tag.Id });
         }
 
-        // Save the PostTag associations to the database
         await _postRepository.UpdateAsync(post);
     }
 }

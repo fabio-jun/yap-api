@@ -33,6 +33,15 @@ public class LikeRepository : ILikeRepository
             .CountAsync(l => l.PostId == postId);
     }
 
+    public async Task<List<Like>> GetByPostIdWithUsersAsync(int postId)
+    {
+        return await _context.Likes
+            .Include(l => l.User)
+            .Where(l => l.PostId == postId)
+            .OrderByDescending(l => l.CreatedAt)
+            .ToListAsync();
+    }
+
     public async Task AddAsync(Like like)
     {
         await _context.Likes.AddAsync(like);

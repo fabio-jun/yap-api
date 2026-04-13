@@ -59,7 +59,7 @@ public class UserRepository : IUserRepository
     {
         return await _context.Users
             .Where(u => u.Id != userId
-                && !_context.Follows.Any(f => f.FollowerId == userId && f.FollowingId == u.Id))
+                && !_context.Follows.Any(f => f.FollowerId == userId && f.FollowedId == u.Id))
             .OrderBy(u => Guid.NewGuid())
             .Take(count)
             .ToListAsync();

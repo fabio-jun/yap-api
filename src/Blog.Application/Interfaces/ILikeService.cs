@@ -1,3 +1,5 @@
+using Blog.Application.DTOs.Likes;
+
 namespace Blog.Application.Interfaces;
 
 // Service interface for like operations.
@@ -12,4 +14,6 @@ public interface ILikeService
 
     // Checks if a specific user has liked a post (used for HasLiked in PostResponse)
     Task<bool> HasLikedAsync(int postId, int userId);
+
+    Task<List<LikedUserResponse>> GetUsersAsync(int postId);
 }

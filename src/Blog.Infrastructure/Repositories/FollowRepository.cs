@@ -6,7 +6,7 @@ namespace Blog.Infrastructure.Repositories;
 
 // Concrete implementation of IFollowRepository using EF Core.
 // Manages the self-referencing many-to-many relationship: User follows User.
-// Follow uses composite PK (FollowerId, FollowingId).
+// Follow uses composite PK (FollowerId, FollowedId).
 public class FollowRepository : IFollowRepository
 {
     private readonly AppDbContext _context;
@@ -18,10 +18,10 @@ public class FollowRepository : IFollowRepository
 
     // Checks if a follow relationship exists between two users.
     // Used by the service layer for the toggle pattern (follow/unfollow).
-    public async Task<Follow?> GetAsync(int followerId, int followingId)
+    public async Task<Follow?> GetAsync(int followerId, int followedId)
     {
         return await _context.Follows
-            .FirstOrDefaultAsync(f => f.FollowerId == followerId && f.FollowingId == followingId);
+            .FirstOrDefaultAsync(f => f.FollowerId == followerId && f.FollowedId == followedId);
     }
 
     // Returns all users who follow a given user (their followers).
@@ -30,7 +30,7 @@ public class FollowRepository : IFollowRepository
     public async Task<IEnumerable<User>> GetFollowersAsync(int userId)
     {
         return await _context.Follows
-            .Where(f => f.FollowingId == userId)
+            .Where(f => f.FollowedId == userId)
             .Select(f => f.Follower!)
             .ToListAsync();
     }
@@ -41,7 +41,7 @@ public class FollowRepository : IFollowRepository
     {
         return await _context.Follows
             .Where(f => f.FollowerId == userId)
-            .Select(f => f.Following!)
+            .Select(f => f.Followed!)
             .ToListAsync();
     }
 
@@ -49,7 +49,7 @@ public class FollowRepository : IFollowRepository
     // More efficient than loading entities just to count them.
     public async Task<int> GetFollowersCountAsync(int userId)
     {
-        return await _context.Follows.CountAsync(f => f.FollowingId == userId);
+        return await _context.Follows.CountAsync(f => f.FollowedId == userId);
     }
 
     public async Task<int> GetFollowingCountAsync(int userId)
