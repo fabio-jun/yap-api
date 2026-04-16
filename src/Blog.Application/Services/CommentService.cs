@@ -7,6 +7,7 @@ using Blog.Domain.Interfaces;
 
 namespace Blog.Application.Services;
 
+// Service that handles comments, threaded replies, delete authorization, and mention notifications.
 public class CommentService : ICommentService
 {
     private readonly ICommentRepository _commentRepository;
@@ -14,6 +15,7 @@ public class CommentService : ICommentService
     private readonly INotificationService _notificationService;
     private readonly IUserRepository _userRepository;
 
+    // Repositories and notification service are injected by ASP.NET Core's DI container.
     public CommentService(
         ICommentRepository commentRepository,
         IPostRepository postRepository,
@@ -26,9 +28,11 @@ public class CommentService : ICommentService
         _userRepository = userRepository;
     }
 
+    // Returns the full comment tree for a post, with root comments first and replies nested.
     public async Task<IEnumerable<CommentResponse>> GetByPostIdAsync(int postId)
     {
         var comments = (await _commentRepository.GetByPostIdAsync(postId)).ToList();
+        // Group replies by their parent comment so recursive mapping can build the tree.
         var byParent = comments
             .Where(c => c.ParentCommentId.HasValue)
             .GroupBy(c => c.ParentCommentId!.Value)
@@ -43,11 +47,13 @@ public class CommentService : ICommentService
         return responses;
     }
 
+    // Creates a top-level comment on a yap.
     public async Task<CommentResponse> CreateAsync(int postId, CreateCommentRequest request, int authorId)
     {
         return await CreateInternalAsync(postId, request, authorId, null);
     }
 
+    // Creates a reply to an existing comment, validating that the parent belongs to the same yap.
     public async Task<CommentResponse> CreateReplyAsync(int postId, int parentCommentId, CreateCommentRequest request, int authorId)
     {
         var parent = await _commentRepository.GetByIdWithPostAsync(parentCommentId);
@@ -57,6 +63,7 @@ public class CommentService : ICommentService
         return await CreateInternalAsync(postId, request, authorId, parentCommentId);
     }
 
+    // Deletes a comment. Only the author or an admin can delete it.
     public async Task DeleteAsync(int commentId, int userId, string userRole)
     {
         var comment = await _commentRepository.GetByIdAsync(commentId);
@@ -70,6 +77,7 @@ public class CommentService : ICommentService
         await _commentRepository.DeleteAsync(comment);
     }
 
+    // Shared creation path for both top-level comments and threaded replies.
     private async Task<CommentResponse> CreateInternalAsync(
         int postId,
         CreateCommentRequest request,
@@ -87,6 +95,7 @@ public class CommentService : ICommentService
 
         await _commentRepository.AddAsync(comment);
 
+        // Notify the post author that someone commented, unless NotificationService suppresses self-actions.
         var post = await _postRepository.GetByIdAsync(postId);
         if (post != null)
         {
@@ -108,6 +117,7 @@ public class CommentService : ICommentService
         };
     }
 
+    // Maps a Comment entity to a DTO and recursively attaches its replies.
     private async Task<CommentResponse> MapToResponse(
         Comment comment,
         Dictionary<int, List<Comment>> byParent)
@@ -134,6 +144,7 @@ public class CommentService : ICommentService
         return response;
     }
 
+    // Creates mention notifications for every valid @username in the comment content.
     private async Task<List<MentionedUserResponse>> NotifyMentions(string content, int actorId, int postId)
     {
         var mentionedUsers = await ResolveMentions(content);
@@ -146,6 +157,7 @@ public class CommentService : ICommentService
         return mentionedUsers;
     }
 
+    // Parses unique @username mentions and resolves them to existing users.
     private async Task<List<MentionedUserResponse>> ResolveMentions(string content)
     {
         var usernames = Regex.Matches(content, @"@([A-Za-z0-9_]+)")

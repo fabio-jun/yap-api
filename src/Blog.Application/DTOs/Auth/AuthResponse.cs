@@ -2,7 +2,6 @@ namespace Blog.Application.DTOs.Auth;
 
 // DTO returned to the client after successful login or registration.
 // Contains the JWT access token (for API calls) and a refresh token (for getting new access tokens).
-// ASP.NET Core serializes this object into JSON automatically when returned via Ok(response).
 public class AuthResponse
 {
     // JWT token string — sent in the Authorization header as "Bearer <token>"

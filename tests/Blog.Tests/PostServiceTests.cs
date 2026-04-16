@@ -1,4 +1,6 @@
 using Blog.Application.DTOs.Posts;
+using Blog.Application.Cache;
+using Blog.Application.Interfaces;
 using Blog.Application.Services;
 using Blog.Domain.Entities;
 using Blog.Domain.Interfaces;
@@ -16,11 +18,66 @@ public class PostServiceTests
     private readonly IUserRepository _userRepository = Substitute.For<IUserRepository>();
     private readonly Blog.Application.Interfaces.INotificationService _notificationService = Substitute.For<Blog.Application.Interfaces.INotificationService>();
     private readonly IBlockRepository _blockRepository = Substitute.For<IBlockRepository>();
+    private readonly ICacheService _cacheService = Substitute.For<ICacheService>();
     private readonly PostService _sut;
 
     public PostServiceTests()
     {
-        _sut = new PostService(_postRepository, _tagRepository, _likeRepository, _bookmarkRepository, _repostRepository, _userRepository, _notificationService, _blockRepository);
+        _sut = new PostService(_postRepository, _tagRepository, _likeRepository, _bookmarkRepository, _repostRepository, _userRepository, _notificationService, _blockRepository, _cacheService);
+    }
+
+    [Fact]
+    public async Task GetAllAsync_AnonymousCacheHit_ReturnsCachedPostsWithoutRepository()
+    {
+        var cached = new List<PostResponse>
+        {
+            new() { Id = 1, OriginalPostId = 1, Content = "Cached yap", AuthorId = 1, AuthorName = "alice" }
+        };
+        _cacheService.GetAsync<List<PostResponse>>(CacheKeys.AllPosts()).Returns(cached);
+
+        var result = (await _sut.GetAllAsync()).ToList();
+
+        Assert.Single(result);
+        Assert.Equal("Cached yap", result[0].Content);
+        await _postRepository.DidNotReceive().GetAllAsync();
+        await _repostRepository.DidNotReceive().GetAllAsync();
+    }
+
+    [Fact]
+    public async Task GetAllAsync_AnonymousCacheMiss_PopulatesAllPostsCache()
+    {
+        var posts = new List<Post>
+        {
+            new() { Id = 1, Content = "Fresh yap", AuthorId = 1, Author = new User { Id = 1, UserName = "alice", Email = "a@test.com", PasswordHash = "h", Role = "User" } }
+        };
+        _cacheService.GetAsync<List<PostResponse>>(CacheKeys.AllPosts()).Returns((List<PostResponse>?)null);
+        _postRepository.GetAllAsync().Returns(posts);
+
+        var result = (await _sut.GetAllAsync()).ToList();
+
+        Assert.Single(result);
+        await _cacheService.Received(1).SetAsync(
+            CacheKeys.AllPosts(),
+            Arg.Is<List<PostResponse>>(responses => responses.Single().Content == "Fresh yap"),
+            TimeSpan.FromSeconds(60),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetFeedAsync_CacheHit_ReturnsCachedFeedWithoutRepository()
+    {
+        var cached = new List<PostResponse>
+        {
+            new() { Id = 1, OriginalPostId = 1, Content = "Cached feed", AuthorId = 2, AuthorName = "bob" }
+        };
+        _cacheService.GetAsync<List<PostResponse>>(CacheKeys.UserFeed(1)).Returns(cached);
+
+        var result = (await _sut.GetFeedAsync(1)).ToList();
+
+        Assert.Single(result);
+        Assert.Equal("Cached feed", result[0].Content);
+        await _postRepository.DidNotReceive().GetFeedAsync(1);
+        await _repostRepository.DidNotReceive().GetFeedAsync(1);
     }
 
     [Fact]
@@ -104,6 +161,8 @@ public class PostServiceTests
 
         Assert.Equal("New yap", result.Content);
         await _postRepository.Received(1).AddAsync(Arg.Any<Post>());
+        await _cacheService.Received(1).RemoveAsync(CacheKeys.AllPosts(), Arg.Any<CancellationToken>());
+        await _cacheService.Received(1).RemoveAsync(CacheKeys.AllTags(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -135,6 +194,7 @@ public class PostServiceTests
 
         await _tagRepository.Received(1).AddAsync(Arg.Is<Tag>(t => t.Name == "hashtag"));
         await _tagRepository.Received(1).AddAsync(Arg.Is<Tag>(t => t.Name == "test"));
+        await _cacheService.Received(1).RemoveAsync(CacheKeys.AllTags(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -169,6 +229,7 @@ public class PostServiceTests
         var result = await _sut.UpdateAsync(1, request, 999, "Admin");
 
         Assert.Equal("Updated by admin", result.Content);
+        await _cacheService.Received(1).RemoveAsync(CacheKeys.AllPosts(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -197,6 +258,7 @@ public class PostServiceTests
         await _sut.DeleteAsync(1, 1, "User");
 
         await _postRepository.Received(1).DeleteAsync(post);
+        await _cacheService.Received(1).RemoveAsync(CacheKeys.AllPosts(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

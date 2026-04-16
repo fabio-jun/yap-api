@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Blog.Infrastructure.Repositories;
 
-// Concrete implementation of IRefreshTokenRepository using EF Core.
 // Manages refresh tokens for JWT authentication with token rotation.
 // On each token refresh, the old token is revoked (IsRevoked = true) and a new one is created.
 public class RefreshTokenRepository : IRefreshTokenRepository

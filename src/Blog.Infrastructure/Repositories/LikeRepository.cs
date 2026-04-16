@@ -4,10 +4,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Blog.Infrastructure.Repositories;
 
-// Concrete implementation of ILikeRepository using EF Core.
 // Like uses a composite PK (PostId, UserId) — no separate Id column.
-// The toggle pattern (like/unlike) is handled at the service layer;
-// this repository only provides the CRUD primitives.
 public class LikeRepository : ILikeRepository
 {
     private readonly AppDbContext _context;

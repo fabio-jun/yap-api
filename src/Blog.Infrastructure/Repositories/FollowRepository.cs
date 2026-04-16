@@ -4,9 +4,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Blog.Infrastructure.Repositories;
 
-// Concrete implementation of IFollowRepository using EF Core.
-// Manages the self-referencing many-to-many relationship: User follows User.
-// Follow uses composite PK (FollowerId, FollowedId).
+
+// Composite PK (FollowerId, FollowedId).
 public class FollowRepository : IFollowRepository
 {
     private readonly AppDbContext _context;

@@ -4,8 +4,6 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Blog.Infrastructure.Repositories;
 
-// Concrete implementation of IPostRepository using EF Core.
-// Handles all database operations for Post entities, including feed, search, and pagination.
 public class PostRepository : IPostRepository
 {
     private readonly AppDbContext _context;
@@ -15,7 +13,6 @@ public class PostRepository : IPostRepository
         _context = context;
     }
 
-    // Include(p => p.Author) — eager loading: loads the related User entity in the same query.
     // Without Include, p.Author would be null (EF Core uses lazy loading only if explicitly configured).
     // OrderByDescending — most recent posts first (SQL: ORDER BY "CreatedAt" DESC).
     public async Task<IEnumerable<Post>> GetAllAsync()
@@ -27,7 +24,6 @@ public class PostRepository : IPostRepository
     }
 
     // Where() — filters the query (SQL WHERE clause).
-    // The lambda p => p.AuthorId == userId is translated to SQL by EF Core's query provider.
     public async Task<IEnumerable<Post>> GetByUserIdAsync(int userId)
     {
         return await _context.Posts
@@ -50,16 +46,16 @@ public class PostRepository : IPostRepository
 
         var totalCount = await query.CountAsync();
         var items = await query
+            // Skip register from previous pages
             .Skip((page - 1) * pageSize)
+            // Takes the number of records defined by pageSize
             .Take(pageSize)
             .ToListAsync();
-
         return (items, totalCount);
     }
 
     // Feed query — returns posts only from users the current user follows.
-    // Uses a subquery: Any() checks if a Follow record exists linking the current user to the post's author.
-    // Translates to SQL: WHERE EXISTS (SELECT 1 FROM "Follows" WHERE ...)
+    // Uses a subquery: Any() checks if a Follow record exists linking the user to the post's author.
     public async Task<IEnumerable<Post>> GetFeedAsync(int userId)
     {
         return await _context.Posts
@@ -82,11 +78,12 @@ public class PostRepository : IPostRepository
 
     // Filters posts by tag name using a navigation chain:
     // p.PostTags! — the null-forgiving operator (!) tells the compiler PostTags won't be null at runtime.
+    // If the PostTag doesn't exist, its an empty collection, not null
     // Any(pt => pt.Tag!.Name == tagName.ToLower()) — checks if any associated tag matches.
-    // This traverses: Post → PostTags (join table) → Tag.Name
+    // This traverses: Post -> PostTags (join table) -> Tag.Name
     public async Task<IEnumerable<Post>> GetByTagAsync(string tagName)
     {
-        return await _context.Posts
+        return await _context.Posts 
             .Include(p => p.Author)
             .Where(p => p.PostTags!.Any(pt => pt.Tag!.Name == tagName.ToLower()))
             .OrderByDescending(p => p.CreatedAt)

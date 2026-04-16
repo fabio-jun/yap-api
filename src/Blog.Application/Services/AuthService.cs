@@ -11,19 +11,15 @@ using Microsoft.IdentityModel.Tokens;
 namespace Blog.Application.Services;
 
 // Service that handles authentication: register, login, and token refresh.
-// Implements IAuthService — the controller depends on the interface, not this class (DI).
 public class AuthService : IAuthService
 {
-    // 'private readonly' — the field can only be assigned in the constructor, preventing accidental reassignment.
-    // '_' prefix is C# naming convention for private fields.
     private readonly IUserRepository _userRepository;
     private readonly IRefreshTokenRepository _refreshTokenRepository;
-    // IConfiguration gives access to appsettings.json values (e.g., Jwt:Key, Jwt:Issuer)
+    // IConfiguration gives access to appsettings.json values
     private readonly IConfiguration _configuration;
 
     // Constructor — Dependency Injection (DI).
     // ASP.NET Core's DI container creates instances of the dependencies and passes them here.
-    // The controller never does 'new AuthService(...)' — the DI container handles it.
     public AuthService(
         IUserRepository userRepository,
         IRefreshTokenRepository refreshTokenRepository,
@@ -35,8 +31,6 @@ public class AuthService : IAuthService
     }
 
     // Registers a new user: validates uniqueness, hashes password, generates tokens.
-    // 'async Task<T>' — asynchronous method that returns T. 'await' pauses until the async operation completes
-    // without blocking the thread (important for web servers handling many requests).
     public async Task<AuthResponse> RegisterAsync(RegisterRequest request)
     {
         // Check if email is already registered
@@ -49,17 +43,16 @@ public class AuthService : IAuthService
         if (existingUserName != null)
             throw new ArgumentException("Username already taken.");
 
-        // Create the User entity — object initializer syntax: new Type { Prop = value }
+        // Create the User entity 
         var user = new User
         {
             UserName = request.UserName,
             Email = request.Email,
-            // BCrypt.HashPassword() generates a salted hash — never store plain text passwords
+            // BCrypt.HashPassword() generates a salted hash
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
             Role = "User"
         };
 
-        // INSERT INTO Users (...) VALUES (...)
         await _userRepository.AddAsync(user);
 
         // Generate JWT + refresh token and return them
@@ -72,7 +65,7 @@ public class AuthService : IAuthService
         var user = await _userRepository.GetByEmailAsync(request.Email);
         // BCrypt.Verify compares plain password against the stored hash
         if (user == null || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
-            throw new ArgumentException("Email ou senha inválidos.");
+            throw new ArgumentException("Invalid e-mail or password.");
 
         return await GenerateAuthResponse(user);
     }
@@ -91,12 +84,10 @@ public class AuthService : IAuthService
 
         // Look up the user and generate fresh tokens
         var user = await _userRepository.GetByIdAsync(token.UserId);
-        // '!' (null-forgiving operator) — tells the compiler "I know this isn't null"
         return await GenerateAuthResponse(user!);
     }
 
     // Private helper — generates both JWT access token and refresh token.
-    // 'private' means only this class can call it — not exposed to controllers.
     private async Task<AuthResponse> GenerateAuthResponse(User user)
     {
         // Generate the short-lived JWT (1 hour)
@@ -106,7 +97,7 @@ public class AuthService : IAuthService
         // Create a long-lived refresh token (7 days)
         var refreshToken = new RefreshToken
         {
-            // Guid.NewGuid() — generates a globally unique random string (e.g., "a1b2c3d4-...")
+            // Guid.NewGuid() — generates a globally unique random string
             Token = Guid.NewGuid().ToString(),
             ExpiresAt = expiresAt,
             UserId = user.Id
@@ -129,14 +120,13 @@ public class AuthService : IAuthService
     private string GenerateJwtToken(User user)
     {
         // Read the secret key from configuration and convert to bytes
-        // _configuration["Jwt:Key"] reads the value from appsettings.json → { "Jwt": { "Key": "..." } }
-        // '!' asserts the value is not null
+        // _configuration["Jwt:Key"] reads the value from appsettings.json
         var key = new SymmetricSecurityKey(
             Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!));
 
         // Claims are key-value pairs embedded inside the JWT payload.
         // The frontend and backend can read these without a database query.
-        // ClaimTypes.NameIdentifier → standard claim for user ID
+        // ClaimTypes.NameIdentifier -> standard claim for user ID
         var claims = new[]
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),

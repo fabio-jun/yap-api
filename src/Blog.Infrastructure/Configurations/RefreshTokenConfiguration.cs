@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Blog.Infrastructure.Configurations;
 
-// EF Core Fluent API configuration for the RefreshToken entity.
 // Refresh tokens support JWT token rotation — when the access token expires,
 // the client exchanges a valid refresh token for a new access + refresh token pair.
 public class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshToken>
@@ -15,11 +14,11 @@ public class RefreshTokenConfiguration : IEntityTypeConfiguration<RefreshToken>
 
         builder.HasKey(r => r.Id);
 
-        // The token string itself — a unique, opaque value (typically a GUID or random string)
+        // The token string itself 
         builder.Property(r => r.Token)
             .IsRequired();
 
-        // Expiration timestamp — after this, the token can no longer be used
+        // Expiration timestamp
         builder.Property(r => r.ExpiresAt)
             .IsRequired();
 

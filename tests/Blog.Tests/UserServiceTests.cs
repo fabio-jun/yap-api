@@ -1,4 +1,6 @@
 using Blog.Application.DTOs.Users;
+using Blog.Application.Cache;
+using Blog.Application.Interfaces;
 using Blog.Application.Services;
 using Blog.Domain.Entities;
 using Blog.Domain.Interfaces;
@@ -10,11 +12,25 @@ public class UserServiceTests
 {
     private readonly IUserRepository _userRepository = Substitute.For<IUserRepository>();
     private readonly IFollowRepository _followRepository = Substitute.For<IFollowRepository>();
+    private readonly ICacheService _cacheService = Substitute.For<ICacheService>();
     private readonly UserService _sut;
 
     public UserServiceTests()
     {
-        _sut = new UserService(_userRepository, _followRepository);
+        _sut = new UserService(_userRepository, _followRepository, _cacheService);
+    }
+
+    [Fact]
+    public async Task GetByIdAsync_CacheHit_ReturnsCachedProfileWithoutRepository()
+    {
+        var cached = new UserResponse { Id = 1, UserName = "cached", Email = "cached@test.com", Role = "User" };
+        _cacheService.GetAsync<UserResponse>(CacheKeys.UserProfile(1)).Returns(cached);
+
+        var result = await _sut.GetByIdAsync(1);
+
+        Assert.Equal("cached", result.UserName);
+        await _userRepository.DidNotReceive().GetByIdAsync(1);
+        await _followRepository.DidNotReceive().GetFollowersCountAsync(1);
     }
 
     [Fact]
@@ -30,6 +46,11 @@ public class UserServiceTests
         Assert.Equal("testuser", result.UserName);
         Assert.Equal(10, result.FollowersCount);
         Assert.Equal(5, result.FollowingCount);
+        await _cacheService.Received(1).SetAsync(
+            CacheKeys.UserProfile(1),
+            Arg.Is<UserResponse>(response => response.UserName == "testuser"),
+            TimeSpan.FromMinutes(10),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -54,6 +75,44 @@ public class UserServiceTests
         Assert.Equal("newname", result.UserName);
         Assert.Equal("new@test.com", result.Email);
         await _userRepository.Received(1).UpdateAsync(user);
+        await _cacheService.Received(1).RemoveAsync(CacheKeys.UserProfile(1), Arg.Any<CancellationToken>());
+        await _cacheService.Received(1).RemoveAsync(CacheKeys.SuggestedUsers(1), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetSuggestedAsync_CacheHit_ReturnsCachedSuggestionsWithoutRepository()
+    {
+        var cached = new List<UserResponse>
+        {
+            new() { Id = 2, UserName = "suggested", Email = "s@test.com", Role = "User" }
+        };
+        _cacheService.GetAsync<List<UserResponse>>(CacheKeys.SuggestedUsers(1)).Returns(cached);
+
+        var result = (await _sut.GetSuggestedAsync(1, 5)).ToList();
+
+        Assert.Single(result);
+        Assert.Equal("suggested", result[0].UserName);
+        await _userRepository.DidNotReceive().GetSuggestedAsync(1, 5);
+    }
+
+    [Fact]
+    public async Task GetSuggestedAsync_CacheMiss_PopulatesSuggestedUsersCache()
+    {
+        var users = new List<User>
+        {
+            new() { Id = 2, UserName = "fresh", Email = "f@test.com", PasswordHash = "h", Role = "User", CreatedAt = DateTime.UtcNow }
+        };
+        _cacheService.GetAsync<List<UserResponse>>(CacheKeys.SuggestedUsers(1)).Returns((List<UserResponse>?)null);
+        _userRepository.GetSuggestedAsync(1, 5).Returns(users);
+
+        var result = (await _sut.GetSuggestedAsync(1, 5)).ToList();
+
+        Assert.Single(result);
+        await _cacheService.Received(1).SetAsync(
+            CacheKeys.SuggestedUsers(1),
+            Arg.Is<List<UserResponse>>(responses => responses.Single().UserName == "fresh"),
+            TimeSpan.FromMinutes(10),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]

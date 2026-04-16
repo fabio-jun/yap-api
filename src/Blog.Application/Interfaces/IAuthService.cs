@@ -2,9 +2,6 @@ using Blog.Application.DTOs.Auth;
 
 namespace Blog.Application.Interfaces;
 
-// Service interface for authentication operations.
-// Defines the contract — the actual implementation (AuthService) handles JWT generation,
-// password hashing, and token management.
 public interface IAuthService
 {
     // Creates a new user account and returns JWT + refresh token

@@ -1,3 +1,7 @@
+using Blog.Application.Cache;
+using Blog.Application.DTOs;
+using Blog.Application.DTOs.Notifications;
+using Blog.Application.Interfaces;
 using Blog.Application.Services;
 using Blog.Domain.Entities;
 using Blog.Domain.Interfaces;
@@ -8,11 +12,65 @@ namespace Blog.Tests;
 public class NotificationServiceTests
 {
     private readonly INotificationRepository _notificationRepository = Substitute.For<INotificationRepository>();
+    private readonly ICacheService _cacheService = Substitute.For<ICacheService>();
     private readonly NotificationService _sut;
 
     public NotificationServiceTests()
     {
-        _sut = new NotificationService(_notificationRepository);
+        _sut = new NotificationService(_notificationRepository, _cacheService);
+    }
+
+    [Fact]
+    public async Task GetNotificationsAsync_CacheHit_ReturnsCachedNotificationsWithoutRepository()
+    {
+        var cached = new PagedResponse<NotificationResponse>
+        {
+            Items = new List<NotificationResponse>
+            {
+                new() { Id = 1, Type = "like", ActorId = 2, ActorUsername = "alice" }
+            },
+            Page = 1,
+            PageSize = 20,
+            TotalCount = 1
+        };
+        _cacheService.GetAsync<PagedResponse<NotificationResponse>>(CacheKeys.Notifications(1)).Returns(cached);
+
+        var result = await _sut.GetNotificationsAsync(1, 1, 20);
+
+        Assert.Single(result.Items);
+        Assert.Equal("alice", result.Items.Single().ActorUsername);
+        await _notificationRepository.DidNotReceive().GetByUserIdAsync(1, 1, 20);
+        await _notificationRepository.DidNotReceive().GetTotalCountAsync(1);
+    }
+
+    [Fact]
+    public async Task GetNotificationsAsync_CacheMiss_PopulatesNotificationsCache()
+    {
+        var notifications = new List<Notification>
+        {
+            new()
+            {
+                Id = 1,
+                Type = NotificationType.Like,
+                IsRead = false,
+                CreatedAt = DateTime.UtcNow,
+                ActorId = 2,
+                UserId = 1,
+                Actor = new User { Id = 2, UserName = "alice", Email = "a@b.com", PasswordHash = "x", Role = "User" }
+            }
+        };
+        _cacheService.GetAsync<PagedResponse<NotificationResponse>>(CacheKeys.Notifications(1)).Returns((PagedResponse<NotificationResponse>?)null);
+        _notificationRepository.GetByUserIdAsync(1, 1, 20).Returns(notifications);
+        _notificationRepository.GetTotalCountAsync(1).Returns(1);
+
+        var result = await _sut.GetNotificationsAsync(1, 1, 20);
+
+        Assert.Single(result.Items);
+        await _cacheService.Received(1).SetAsync(
+            CacheKeys.Notifications(1),
+            Arg.Is<PagedResponse<NotificationResponse>>(response => response.TotalCount == 1 && response.Items.Single().ActorUsername == "alice"),
+            TimeSpan.FromSeconds(15),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]

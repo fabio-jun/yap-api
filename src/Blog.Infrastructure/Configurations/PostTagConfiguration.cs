@@ -4,15 +4,13 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Blog.Infrastructure.Configurations;
 
-// EF Core Fluent API configuration for the PostTag join entity.
-// This is the explicit join table for the many-to-many relationship between Post and Tag.
 public class PostTagConfiguration : IEntityTypeConfiguration<PostTag>
 {
     public void Configure(EntityTypeBuilder<PostTag> builder)
     {
         builder.ToTable("PostTags");
 
-        // Composite PK — (PostId, TagId) ensures a tag is linked to a post only once
+        // Composite PK — (PostId, TagId) 
         builder.HasKey(pt => new { pt.PostId, pt.TagId });
 
         // PostTag → Post (Many-to-One)

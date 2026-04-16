@@ -4,33 +4,29 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Blog.Infrastructure.Repositories;
 
-// Concrete implementation of IUserRepository using EF Core.
 // This class encapsulates all database access for User entities.
 // Registered as AddScoped in Program.cs — one instance per HTTP request.
 public class UserRepository : IUserRepository
 {
     // readonly — can only be assigned in the constructor, prevents accidental reassignment
-    // Underscore prefix (_) is a C# naming convention for private fields
     private readonly AppDbContext _context;
 
     // Constructor Dependency Injection (DI):
     // ASP.NET Core's DI container automatically provides an AppDbContext instance.
-    // This is the same DbContext instance shared across all repositories in a single request (Scoped lifetime).
+    // This is the same DbContext instance shared across all repositories in a single request (scoped lifetime).
     public UserRepository(AppDbContext context)
     {
         _context = context;
     }
 
-    // FindAsync() is optimized for PK lookups — it first checks the local cache (Change Tracker)
+    // FindAsync() is optimized for PK lookups — it first checks the local cache
     // before hitting the database. More efficient than FirstOrDefaultAsync for PK queries.
-    // Returns null if not found (User? — nullable return type).
     public async Task<User?> GetByIdAsync(int id)
     {
         return await _context.Users.FindAsync(id);
     }
 
-    // FirstOrDefaultAsync: returns the first entity matching the lambda predicate, or null if none found.
-    // u => u.UserName == userName — lambda expression: u is the parameter, the body is the condition.
+    // FirstOrDefaultAsync: returns the first entity matching the lambda expression.
     public async Task<User?> GetByUserNameAsync(string userName)
     {
         return await _context.Users.FirstOrDefaultAsync(u => u.UserName == userName);
@@ -51,7 +47,7 @@ public class UserRepository : IUserRepository
             .ToListAsync();
     }
 
-    // Returns suggested users (users the current user doesn't follow).
+    // Returns suggested users.
     // Subquery with !Any() — translates to SQL: WHERE NOT EXISTS (SELECT 1 FROM Follows ...)
     // OrderBy(u => Guid.NewGuid()) — randomizes results by sorting on a new GUID per row.
     // Take(count) — limits results (SQL LIMIT).

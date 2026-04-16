@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text;
 using Blog.API.Middlewares;
 using Blog.Infrastructure;
+using Blog.Infrastructure.Cache;
 using Blog.Infrastructure.Repositories;
 using Blog.Domain.Interfaces;
 using Blog.Application.Interfaces;
@@ -12,6 +13,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using StackExchange.Redis;
 
 // --- APPLICATION BUILDER PHASE ---
 // WebApplication.CreateBuilder — creates the host with default configuration:
@@ -55,6 +57,19 @@ builder.Services.AddControllers();
 // GetConnectionString("DefaultConnection") — reads from appsettings.json > ConnectionStrings > DefaultConnection.
 builder.Services.AddDbContext<AppDbContext>(options =>
       options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+var redisConnection = builder.Configuration["Redis:Connection"] ?? "localhost:6379";
+builder.Services.AddStackExchangeRedisCache(options =>
+{
+    options.Configuration = redisConnection;
+});
+
+builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
+{
+    var options = ConfigurationOptions.Parse(redisConnection);
+    options.AbortOnConnectFail = false;
+    return ConnectionMultiplexer.Connect(options);
+});
 
 // Swagger/OpenAPI — auto-generates API documentation at /swagger.
 builder.Services.AddEndpointsApiExplorer();
@@ -144,6 +159,7 @@ builder.Services.AddScoped<IBlockRepository, BlockRepository>();
 builder.Services.AddScoped<IReportRepository, ReportRepository>();
 
 // Application services (business logic layer)
+builder.Services.AddScoped<ICacheService, RedisCacheService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IPostService, PostService>();
 builder.Services.AddScoped<ICommentService, CommentService>();
