@@ -23,6 +23,6 @@ public class Post
     // Many-to-many with Tag through the join entity PostTag
     public ICollection<PostTag>? PostTags { get; set; }
  
-    // URL of the image/video uploaded to Cloudinary.
+    // URL of the image/video uploaded to external object storage.
     public string? ImageUrl { get; set; }
 }

@@ -23,7 +23,10 @@ public class UsersController : ControllerBase
     // [FromQuery] — explicitly binds from the URL query string.
     [HttpGet]
     [SwaggerOperation(Summary = "Search users", Description = "Searches users by username or display name.")]
-    public async Task<IActionResult> Search([FromQuery] string? search)
+    public async Task<IActionResult> Search(
+        [FromQuery]
+        [SwaggerParameter(Description = "Required search term for username or display-name lookup.", Required = true)]
+        string? search)
     {
         if (string.IsNullOrWhiteSpace(search))
             // BadRequest() — returns HTTP 400 with an error message.

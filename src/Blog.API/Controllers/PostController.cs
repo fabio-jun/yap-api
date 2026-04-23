@@ -7,7 +7,6 @@ using Swashbuckle.AspNetCore.Annotations;
 
 namespace Blog.API.Controllers;
 
-// API controller for post (yap) CRUD operations.
 // Handles listing, searching, filtering by tag, pagination, and CRUD with authorization.
 [ApiController]
 [Route("api/[controller]")]
@@ -25,7 +24,7 @@ public class PostController : ControllerBase
     // Nullable types (string?, int?) allow the parameters to be optional.
     // The method dispatches to different service methods based on which params are present.
     [HttpGet]
-    [SwaggerOperation(Summary = "List, search, or filter yaps", Description = "Returns yaps. Use search, tag, page, and pageSize query parameters to search, filter by hashtag, or paginate.")]
+    [SwaggerOperation(Summary = "List, search, or filter yaps", Description = "Returns yaps. Parameter precedence is search, then tag, then page. pageSize is only applied when page is provided.")]
     public async Task<IActionResult> GetAll(
         [FromQuery] string? search,
         [FromQuery] string? tag,
@@ -36,7 +35,6 @@ public class PostController : ControllerBase
         // ClaimTypes.NameIdentifier — standard claim type for user ID.
         // Works for both authenticated and anonymous users (returns null if no token).
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
-        // Ternary operator + nullable int: extracts userId from claim, or null if anonymous.
         int? currentUserId = userIdClaim != null ? int.Parse(userIdClaim.Value) : null;
 
         if (!string.IsNullOrWhiteSpace(search))
@@ -51,9 +49,7 @@ public class PostController : ControllerBase
             return Ok(results);
         }
 
-        // HasValue — checks if a nullable type has a value (int? can be null or an int).
-        // .Value — unwraps the nullable to get the underlying int.
-        // ?? — null-coalescing: uses 20 as default page size if not provided.
+      
         if (page.HasValue)
         {
             var paged = await _postService.GetAllPagedAsync(page.Value, pageSize ?? 20, currentUserId);

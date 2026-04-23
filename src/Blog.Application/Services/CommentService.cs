@@ -7,7 +7,6 @@ using Blog.Domain.Interfaces;
 
 namespace Blog.Application.Services;
 
-// Service that handles comments, threaded replies, delete authorization, and mention notifications.
 public class CommentService : ICommentService
 {
     private readonly ICommentRepository _commentRepository;
@@ -95,7 +94,7 @@ public class CommentService : ICommentService
 
         await _commentRepository.AddAsync(comment);
 
-        // Notify the post author that someone commented, unless NotificationService suppresses self-actions.
+        // Notify the post author that someone commented.
         var post = await _postRepository.GetByIdAsync(postId);
         if (post != null)
         {

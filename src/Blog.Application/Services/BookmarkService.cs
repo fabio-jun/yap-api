@@ -5,8 +5,6 @@ using Blog.Application.Interfaces;
 
 namespace Blog.Application.Services;
 
-// Service that handles bookmark toggle and retrieval.
-// Same toggle pattern as LikeService and FollowService.
 public class BookmarkService : IBookmarkService
 {
     private readonly IBookmarkRepository _bookmarkRepository;
@@ -43,8 +41,8 @@ public class BookmarkService : IBookmarkService
     {
         return await _bookmarkRepository.GetAsync(postId, userId) != null;
     }
-
-    // Returns all posts bookmarked by a user, enriched with like info.
+    
+    // Returns all posts bookmarked by a user, with like info.
     public async Task<IEnumerable<PostResponse>> GetBookmarksAsync(int userId)
     {
         var posts = await _bookmarkRepository.GetByUserAsync(userId);

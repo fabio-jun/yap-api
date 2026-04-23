@@ -17,7 +17,7 @@ public class PostResponse
     public required string AuthorName { get; set; }
     public string? AuthorProfileImageUrl { get; set; }
 
-    // Media URL from Cloudinary
+    // Media URL from object storage
     public string? ImageUrl { get; set; }
 
     // Aggregated data — computed per-request in the service layer

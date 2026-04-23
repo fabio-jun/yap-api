@@ -1,19 +1,17 @@
 using System.Reflection;
 using System.Text;
+using Blog.API.DependencyInjection;
 using Blog.API.Middlewares;
+using Blog.API.Swagger;
 using Blog.Infrastructure;
-using Blog.Infrastructure.Cache;
 using Blog.Infrastructure.Repositories;
 using Blog.Domain.Interfaces;
 using Blog.Application.Interfaces;
 using Blog.Application.Services;
-using CloudinaryDotNet;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
-using StackExchange.Redis;
 
 // --- APPLICATION BUILDER PHASE ---
 // WebApplication.CreateBuilder — creates the host with default configuration:
@@ -22,7 +20,7 @@ using StackExchange.Redis;
 var builder = WebApplication.CreateBuilder(args);
 
 // Configures Kestrel (the built-in web server) to accept request bodies up to 55MB.
-// Needed for file uploads (images/videos via Cloudinary).
+// Needed for file uploads (images/videos).
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.Limits.MaxRequestBodySize = 55 * 1024 * 1024; // 55MB
@@ -57,19 +55,8 @@ builder.Services.AddControllers();
 // GetConnectionString("DefaultConnection") — reads from appsettings.json > ConnectionStrings > DefaultConnection.
 builder.Services.AddDbContext<AppDbContext>(options =>
       options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
-
-var redisConnection = builder.Configuration["Redis:Connection"] ?? "localhost:6379";
-builder.Services.AddStackExchangeRedisCache(options =>
-{
-    options.Configuration = redisConnection;
-});
-
-builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
-{
-    var options = ConfigurationOptions.Parse(redisConnection);
-    options.AbortOnConnectFail = false;
-    return ConnectionMultiplexer.Connect(options);
-});
+builder.Services.AddConfiguredCaching(builder.Configuration);
+builder.Services.AddConfiguredStorage(builder.Configuration);
 
 // Swagger/OpenAPI — auto-generates API documentation at /swagger.
 builder.Services.AddEndpointsApiExplorer();
@@ -105,14 +92,7 @@ builder.Services.AddSwaggerGen(options =>
         Scheme = "bearer",
         BearerFormat = "JWT"
     });
-
-    options.AddSecurityRequirement(openApiDocument => new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecuritySchemeReference("Bearer", openApiDocument, null),
-            new List<string>()
-        }
-    });
+    options.OperationFilter<AuthorizeOperationFilter>();
 });
 
 // --- JWT Authentication ---
@@ -159,7 +139,6 @@ builder.Services.AddScoped<IBlockRepository, BlockRepository>();
 builder.Services.AddScoped<IReportRepository, ReportRepository>();
 
 // Application services (business logic layer)
-builder.Services.AddScoped<ICacheService, RedisCacheService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IPostService, PostService>();
 builder.Services.AddScoped<ICommentService, CommentService>();
@@ -174,18 +153,6 @@ builder.Services.AddScoped<IRepostService, RepostService>();
 builder.Services.AddScoped<IBlockService, BlockService>();
 builder.Services.AddScoped<IReportService, ReportService>();
 
-// --- Cloudinary Configuration ---
-// AddSingleton — creates one instance shared across all requests (Cloudinary client is thread-safe).
-// Reads the Cloudinary URL from configuration; falls back to a demo account if not set.
-var cloudinaryUrl = builder.Configuration["Cloudinary:Url"];
-if (!string.IsNullOrEmpty(cloudinaryUrl))
-{
-    builder.Services.AddSingleton(new Cloudinary(cloudinaryUrl));
-}
-else
-{
-    builder.Services.AddSingleton(new Cloudinary(new Account("demo", "demo", "demo")));
-}
 
 // --- APPLICATION PIPELINE PHASE ---
 // Build() — finalizes the service container and creates the WebApplication.

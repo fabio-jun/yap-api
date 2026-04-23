@@ -27,7 +27,7 @@ public class AuthController : ControllerBase
     // (ApiController infers [FromBody] for complex types).
     // Returns Task<IActionResult> — async method returning an HTTP response.
     [HttpPost("register")]
-    [SwaggerOperation(Summary = "Register a new user", Description = "Creates a user account and returns an access token, refresh token, and user profile data.")]
+    [SwaggerOperation(Summary = "Register a new user", Description = "Creates a user account and returns an access token, refresh token, and expiration timestamp.")]
     public async Task<IActionResult> Register(RegisterRequest request)
     {
         var response = await _authService.RegisterAsync(request);
