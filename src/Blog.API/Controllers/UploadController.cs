@@ -21,7 +21,7 @@ public class UploadController : ControllerBase
     // The frontend sends the file via FormData (not JSON).
     [HttpPost]
     [Authorize]
-    [SwaggerOperation(Summary = "Upload media", Description = "Uploads an image or video to Azure Blob Storage and returns its public URL. Images must be under 5MB; videos must be under 50MB.")]
+    [SwaggerOperation(Summary = "Upload media", Description = "Uploads an image or video to Azure Blob Storage and returns its public URL. Supported images are JPEG, PNG, GIF, WebP, and AVIF under 5MB; supported videos are MP4, WebM, and QuickTime under 50MB.")]
     public async Task<IActionResult> Upload(IFormFile file)
     {
         // Input validation — reject empty or missing files.
@@ -30,7 +30,7 @@ public class UploadController : ControllerBase
 
         // Whitelist of allowed MIME types for images and videos.
         // new[] { ... } — implicitly typed array (compiler infers string[]).
-        var imageTypes = new[] { "image/jpeg", "image/png", "image/gif", "image/webp" };
+        var imageTypes = new[] { "image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp", "image/avif" };
         var videoTypes = new[] { "video/mp4", "video/webm", "video/quicktime" };
         // Contains() — LINQ extension method that checks if the array includes the value.
         var isImage = imageTypes.Contains(file.ContentType);

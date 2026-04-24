@@ -29,6 +29,7 @@ public class PostResponse
     public bool HasBookmarked { get; set; }
     public int RepostCount { get; set; }
     public bool HasReposted { get; set; }
+    public int CommentCount { get; set; }
 
     public bool IsRepost { get; set; }
     public int? RepostId { get; set; }

@@ -18,12 +18,13 @@ public class PostServiceTests
     private readonly IUserRepository _userRepository = Substitute.For<IUserRepository>();
     private readonly Blog.Application.Interfaces.INotificationService _notificationService = Substitute.For<Blog.Application.Interfaces.INotificationService>();
     private readonly IBlockRepository _blockRepository = Substitute.For<IBlockRepository>();
+    private readonly ICommentRepository _commentRepository = Substitute.For<ICommentRepository>();
     private readonly ICacheService _cacheService = Substitute.For<ICacheService>();
     private readonly PostService _sut;
 
     public PostServiceTests()
     {
-        _sut = new PostService(_postRepository, _tagRepository, _likeRepository, _bookmarkRepository, _repostRepository, _userRepository, _notificationService, _blockRepository, _cacheService);
+        _sut = new PostService(_postRepository, _tagRepository, _likeRepository, _bookmarkRepository, _repostRepository, _userRepository, _notificationService, _blockRepository, _commentRepository, _cacheService);
     }
 
     [Fact]

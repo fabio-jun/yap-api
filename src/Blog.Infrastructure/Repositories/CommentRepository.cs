@@ -58,4 +58,10 @@ public class CommentRepository : ICommentRepository
         _context.Comments.Remove(comment);
         await _context.SaveChangesAsync();
     }
+
+    // Counts all comments (including replies) for a specific post.
+    public async Task<int> GetCountByPostIdAsync(int postId)
+    {
+        return await _context.Comments.CountAsync(c => c.PostId == postId);
+    }
 }

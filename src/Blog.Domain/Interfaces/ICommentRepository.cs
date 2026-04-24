@@ -15,4 +15,7 @@ public interface ICommentRepository
     
     Task AddAsync(Comment comment);
     Task DeleteAsync(Comment comment);
+
+    // Returns the total number of comments for a post (including replies)
+    Task<int> GetCountByPostIdAsync(int postId);
 }

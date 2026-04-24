@@ -23,6 +23,7 @@ public class PostService : IPostService
     private readonly IUserRepository _userRepository;
     private readonly INotificationService _notificationService;
     private readonly IBlockRepository _blockRepository;
+    private readonly ICommentRepository _commentRepository;
     private readonly ICacheService _cache;
 
     // Repositories, notification service, and cache are injected by ASP.NET Core's DI container.
@@ -35,6 +36,7 @@ public class PostService : IPostService
         IUserRepository userRepository,
         INotificationService notificationService,
         IBlockRepository blockRepository,
+        ICommentRepository commentRepository,
         ICacheService cache)
     {
         _postRepository = postRepository;
@@ -45,6 +47,7 @@ public class PostService : IPostService
         _userRepository = userRepository;
         _notificationService = notificationService;
         _blockRepository = blockRepository;
+        _commentRepository = commentRepository;
         _cache = cache;
     }
 
@@ -306,6 +309,7 @@ public class PostService : IPostService
             // HasReposted is viewer-specific, so anonymous responses always return false.
             HasReposted = currentUserId.HasValue
                 && await _repostRepository.GetAsync(currentUserId.Value, post.Id) != null,
+            CommentCount = await _commentRepository.GetCountByPostIdAsync(post.Id),
             IsRepost = repost != null,
             RepostId = repost?.Id,
             RepostedByUserId = repost?.UserId,
